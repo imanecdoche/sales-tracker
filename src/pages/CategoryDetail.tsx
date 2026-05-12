@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useApp } from '../contexts/AppContext';
 import { format, parseISO } from 'date-fns';
 import { ChevronLeft, Trash2, Edit3 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useStorage } from '../contexts/StorageContext';
 
 const CATEGORIES: Record<string, { label: string, color: string }> = {
   sell: { label: 'cat_sell', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
@@ -23,46 +22,33 @@ export default function CategoryDetail() {
   const navigate = useNavigate();
   const { currentUser } = useApp();
   const { t } = useLanguage();
+  const { transactions: allTransactions, loading, deleteTransaction } = useStorage();
 
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
 
   const category = CATEGORIES[categoryId || ''] || CATEGORIES.sell;
 
-  useEffect(() => {
-    if (!currentUser || !categoryId) return;
-    
-    const q = query(
-      collection(db, 'transactions'),
-      where('userId', '==', currentUser.id),
-      where('type', '==', categoryId),
-      where('date', '==', dateStr),
-      orderBy('timestamp', 'desc')
-    );
+  const transactions = useMemo(() => {
+    if (!currentUser || !categoryId) return [];
+    return allTransactions
+      .filter(trx => trx.userId === currentUser.id && trx.type === categoryId && trx.date === dateStr)
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  }, [allTransactions, currentUser, categoryId, dateStr]);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const trxs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTransactions(trxs);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'transactions');
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, [currentUser, categoryId, dateStr]);
-
-  const handleDelete = async (id: string) => {
-    if (window.confirm(t('confirmDelete'))) {
+  const confirmDelete = async () => {
+    if (transactionToDelete) {
       try {
-        await deleteDoc(doc(db, 'transactions', id));
+        await deleteTransaction(transactionToDelete);
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `transactions/${id}`);
+        console.error(error);
+      } finally {
+        setTransactionToDelete(null);
       }
     }
   };
 
   const formatRupiah = (num: number) => {
+    if (!num || num === 0) return 'N/A';
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
@@ -72,9 +58,9 @@ export default function CategoryDetail() {
 
   return (
     <div className="min-h-full">
-      <div className="p-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors mb-6 font-medium text-sm">
-          <ChevronLeft size={16} /> {t('back')}
+      <div className="px-4 py-6 md:px-6">
+        <button onClick={() => navigate(-1)} className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-gray-500 shadow-sm border border-gray-100 hover:bg-gray-50 hover:text-gray-800 active:scale-95 transition-all mb-6">
+          <ChevronLeft size={24} />
         </button>
 
         <header className="mb-8">
@@ -90,54 +76,166 @@ export default function CategoryDetail() {
           </div>
         ) : (
           <div className="space-y-4">
-            {transactions.map(t => (
-              <div key={t.id} className={`bg-white rounded-[24px] p-5 shadow-sm border ${category.color.split(' ')[2]} relative overflow-hidden group`}>
-                <div className={`absolute top-0 right-0 w-16 h-16 rounded-bl-full opacity-10 ${category.color.split(' ')[0]}`} />
-                
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-800 text-lg mb-1">{t.customerName}</h3>
-                    <div className="text-xs font-medium uppercase tracking-wider text-gray-400 inline-block px-2 py-1 bg-gray-50 rounded-md">
-                      {format(new Date(t.timestamp), 'HH:mm')}
+            {transactions.map(trx => {
+              if (trx.type === 'trade_in') {
+                const diff = (trx.price || 0) - (trx.sellPrice || 0);
+                return (
+                  <div key={trx.id} className="bg-gradient-to-br from-[#f8f9fa] to-white rounded-[24px] p-5 shadow-sm border border-blue-200 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-16 h-16 rounded-bl-full opacity-10 bg-blue-500" />
+                    
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-semibold text-gray-800 text-lg mb-1">{trx.customerName}</h3>
+                        <div className="text-xs font-medium uppercase tracking-wider text-gray-400 inline-block px-2 py-1 bg-gray-100 rounded-md">
+                          {format(new Date(trx.timestamp), 'HH:mm')}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-blue-400 tracking-widest bg-blue-50 px-2 py-1 rounded-md">Trade-In</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-4 text-sm font-medium border border-gray-100 bg-white rounded-2xl p-4">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+                        <span className="text-gray-500">Buy (New)</span>
+                        <span className="text-gray-800">{formatRupiah(trx.price)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+                        <span className="text-gray-500">Sell (Old)</span>
+                        <span className="text-gray-800">{formatRupiah(trx.sellPrice)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1 text-[#b68c5b]">
+                        <span>{diff >= 0 ? "Cust Adds" : "Cust Rcv"}</span>
+                        <span className="text-lg font-serif">Rp {Math.abs(diff).toLocaleString('id-ID')}</span>
+                      </div>
+                    </div>
+
+                    {trx.notes && (
+                      <p className="text-sm text-gray-500 mb-4 bg-gray-50 p-3 rounded-xl italic">
+                        "{trx.notes}"
+                      </p>
+                    )}
+
+                    <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 mt-2 relative z-10">
+                      <button onClick={() => setTransactionToDelete(trx.id)} className="w-auto px-4 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition-colors border border-red-200 font-medium text-sm gap-2 whitespace-nowrap relative z-10">
+                        <Trash2 size={16} /> {t('delete')}
+                      </button>
+                      <button 
+                        onClick={() => navigate(`/edit/${trx.id}`)}
+                        className="w-auto px-4 h-10 rounded-xl bg-white text-gray-700 flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-200 font-medium text-sm gap-2 whitespace-nowrap relative z-10"
+                      >
+                        <Edit3 size={16} /> {t('edit')}
+                      </button>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xl font-light text-[#b68c5b]">{formatRupiah(t.price)}</p>
+                );
+              }
+              
+              if (trx.type === 'reviews') {
+                return (
+                  <div key={trx.id} className="bg-white rounded-[24px] p-5 shadow-sm border border-purple-100 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-16 h-16 rounded-bl-full opacity-10 bg-purple-500" />
+                    
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-semibold text-gray-800 text-lg">{trx.customerName}</h3>
+                      <div className="text-xs font-medium uppercase tracking-wider text-gray-400 inline-block px-2 py-1 bg-gray-50 rounded-md">
+                        {format(new Date(trx.timestamp), 'HH:mm')}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 mt-4 relative z-10">
+                      <button onClick={() => setTransactionToDelete(trx.id)} className="w-auto px-4 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition-colors border border-red-200 font-medium text-sm gap-2 whitespace-nowrap relative z-10">
+                        <Trash2 size={16} /> {t('delete')}
+                      </button>
+                      <button 
+                        onClick={() => navigate(`/edit/${trx.id}`)}
+                        className="w-auto px-4 h-10 rounded-xl bg-white text-gray-700 flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-200 font-medium text-sm gap-2 whitespace-nowrap relative z-10"
+                      >
+                        <Edit3 size={16} /> {t('edit')}
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={trx.id} className={`bg-white rounded-[24px] p-5 shadow-sm border ${category.color.split(' ')[2]} relative overflow-hidden group`}>
+                  <div className={`absolute top-0 right-0 w-16 h-16 rounded-bl-full opacity-10 ${category.color.split(' ')[0]}`} />
+                  
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-800 text-lg mb-1">{trx.customerName}</h3>
+                      <div className="text-xs font-medium uppercase tracking-wider text-gray-400 inline-block px-2 py-1 bg-gray-50 rounded-md">
+                        {format(new Date(trx.timestamp), 'HH:mm')}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-light text-[#b68c5b]">{formatRupiah(trx.price)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex bg-[#f8f6f3] rounded-2xl p-3 mb-4">
+                    <div className="flex-1 text-center border-r border-gray-200/50">
+                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('qtyLabel')}</p>
+                      <p className="font-serif text-lg text-gray-700 leading-none">{trx.qty}</p>
+                    </div>
+                    <div className="flex-1 text-center">
+                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('weightLabel')}</p>
+                      <p className="font-serif text-lg text-gray-700 leading-none">{trx.gram.toFixed(2)}<span className="text-xs text-gray-400 ml-1">g</span></p>
+                    </div>
+                  </div>
+
+                  {trx.notes && (
+                    <p className="text-sm text-gray-500 mb-4 bg-gray-50 p-3 rounded-xl italic">
+                      "{trx.notes}"
+                    </p>
+                  )}
+
+                  <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 mt-2 relative z-10">
+                    <button onClick={() => setTransactionToDelete(trx.id)} className="w-auto px-4 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition-colors border border-red-200 font-medium text-sm gap-2 whitespace-nowrap relative z-10">
+                      <Trash2 size={16} /> {t('delete')}
+                    </button>
+                    <button 
+                      onClick={() => navigate(`/edit/${trx.id}`)}
+                      className="w-auto px-4 h-10 rounded-xl bg-white text-gray-700 flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-200 font-medium text-sm gap-2 whitespace-nowrap relative z-10"
+                    >
+                      <Edit3 size={16} /> {t('edit')}
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex bg-[#f8f6f3] rounded-2xl p-3 mb-4">
-                  <div className="flex-1 text-center border-r border-gray-200/50">
-                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('qtyLabel')}</p>
-                    <p className="font-serif text-lg text-gray-700 leading-none">{t.qty}</p>
-                  </div>
-                  <div className="flex-1 text-center">
-                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('weightLabel')}</p>
-                    <p className="font-serif text-lg text-gray-700 leading-none">{t.gram.toFixed(2)}<span className="text-xs text-gray-400 ml-1">g</span></p>
-                  </div>
-                </div>
-
-                {t.notes && (
-                  <p className="text-sm text-gray-500 mb-4 bg-gray-50 p-3 rounded-xl italic">
-                    "{t.notes}"
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 mt-2">
-                  <button onClick={() => handleDelete(t.id)} className="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                    <Trash2 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => navigate(`/edit/${t.id}`)}
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-[#b68c5b] hover:bg-[#b68c5b]/10 transition-colors"
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
+
+        {/* Delete Confirmation Modal */}
+        {transactionToDelete && (
+          <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-6">
+            <div className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl relative overflow-hidden">
+              <div className="w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-6 mx-auto">
+                <Trash2 size={32} />
+              </div>
+              <h2 className="text-2xl font-serif text-gray-800 text-center mb-2 tracking-tight">
+                {t('confirmDelete')}
+              </h2>
+              <div className="flex gap-3 mt-8">
+                <button 
+                  onClick={() => setTransactionToDelete(null)}
+                  className="flex-1 py-4 rounded-2xl font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  {t('cancel')}
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-4 rounded-2xl font-medium text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+                >
+                  {t('delete')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

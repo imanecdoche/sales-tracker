@@ -1,35 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, Plus } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useStorage } from '../contexts/StorageContext';
 
 export default function LoginScreen() {
   const { setCurrentUser } = useApp();
   const { t } = useLanguage();
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { employees, loading, addEmployee } = useStorage();
   const [newName, setNewName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setEmployees(users);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, []);
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
     try {
-      await addDoc(collection(db, 'users'), {
+      await addEmployee({
         name: newName.trim(),
         active: true,
         role: 'staff'
@@ -37,13 +23,14 @@ export default function LoginScreen() {
       setIsAdding(false);
       setNewName('');
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'users');
+      console.error(error);
     }
   };
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center font-serif text-gray-500">{t('loading')}</div>;
   }
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 text-gray-800">

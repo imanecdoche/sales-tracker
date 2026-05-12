@@ -52,6 +52,9 @@ export const translations: Translations = {
   employeeList: { en: 'Employee List', id: 'Daftar Karyawan', es: 'Lista de Empleados', zh: '员工名单', tl: 'Listahan ng Empleado' },
   language: { en: 'Language', id: 'Bahasa', es: 'Idioma', zh: '语言', tl: 'Wika' },
   screenAdaptation: { en: 'Screen Adaptation', id: 'Adaptasi Layar', es: 'Adaptación de Pantalla', zh: '屏幕自适应', tl: 'Adaptasyon sa Screen' },
+  adaptAuto: { en: 'Auto (Responsive)', id: 'Otomatis (Adaptif)', es: 'Automático (Adaptable)', zh: '自动（自适应）', tl: 'Awtomatiko (Responsive)' },
+  adaptPortrait: { en: 'Lock to Portrait', id: 'Kunci Potret', es: 'Bloquear a Retrato', zh: '锁定为纵向', tl: 'I-lock sa Portrait' },
+  adaptLandscape: { en: 'Lock to Landscape', id: 'Kunci Lanskap', es: 'Bloquear a Paisaje', zh: '锁定为横向', tl: 'I-lock sa Landscape' },
   responsiveActive: { en: 'Responsive landscape & tablet mode active', id: 'Mode lanskap & tablet responsif aktif', es: 'Modo horizontal y tablet receptivo activo', zh: '响应式横向和平板模式已激活', tl: 'Aktibo ang responsive na landscape at tablet mode' },
   switchAccount: { en: 'Switch employee account?', id: 'Ganti akun karyawan?', es: '¿Cambiar cuenta de empleado?', zh: '切换员工账户？', tl: 'Lumipat ng account ng empleyado?' },
   addNew: { en: 'Add New', id: 'Tambah Baru', es: 'Agregar Nuevo', zh: '新增', tl: 'Magdagdag ng Bago' },
@@ -68,12 +71,21 @@ export const translations: Translations = {
   lang_zh: { en: 'Chinese', id: 'Mandarin', es: 'Chino', zh: '中文', tl: 'Tsino' },
   lang_tl: { en: 'Tagalog', id: 'Tagalog', es: 'Tagalo', zh: '塔加洛语', tl: 'Tagalog' },
 
+  // Storage Mode
+  storageMode: { en: 'Storage Mode', id: 'Penyimpanan', es: 'Modo de Almacenamiento', zh: '存储模式', tl: 'Storage Mode' },
+  localDesc: { en: 'Fast, offline on device.', id: 'Cepat, simpan di perangkat.', es: 'Rápido, sin conexión en el dispositivo.', zh: '快速，在设备上离线。', tl: 'Mabilis, offline sa device.' },
+  firestoreDesc: { en: 'Cloud sync, safe everywhere.', id: 'Sinkronisasi cloud, aman di mana saja.', es: 'Sincronización en la nube, seguro en todas partes.', zh: '云同步，随处安全。', tl: 'Cloud sync, ligtas kahit saan.' },
+  syncPrompt: { en: 'You have local data. Do you want to sync it to the Cloud? Cancel to keep it local or choose to delete it.', id: 'Anda memiliki data lokal. Apakah Anda ingin menyinkronkan data ini ke Cloud? (Pilih Cancel untuk opsi hapus)', es: 'Tienes datos locales. ¿Quieres sincronizarlos con la nube?', zh: '您有本地数据。是否要将其同步到云端？', tl: 'Mayroon kang lokal na data. Gusto mo bang i-sync ito sa Cloud?' },
+  deleteLocalPrompt: { en: 'Do you want to delete local data and start fresh in Cloud?', id: 'Apakah Anda ingin menghapus data lokal dan mulai baru di Cloud?', es: '¿Quieres eliminar los datos locales y empezar de nuevo en la nube?', zh: '您要删除本地数据并在云端重新开始吗？', tl: 'Gusto mo bang tanggalin ang lokal na data at magsimula ng bago sa Cloud?' },
+
   today: { en: 'Today', id: 'Hari Ini', es: 'Hoy', zh: '今天', tl: 'Ngayon' },
   items: { en: 'items', id: 'item', es: 'artículos', zh: '项目', tl: 'mga item' },
   noRecords: { en: 'No records found for this day.', id: 'Tidak ada data ditemukan untuk hari ini.', es: 'No se encontraron registros para este día.', zh: '今天没有找到记录。', tl: 'Walang nahanap na mga record para sa araw na ito.' },
   qtyLabel: { en: 'Qty', id: 'Jml', es: 'Cant', zh: '数量', tl: 'Dami' },
   weightLabel: { en: 'Weight', id: 'Berat', es: 'Peso', zh: '重量', tl: 'Timbang' },
   enabled: { en: 'Enabled', id: 'Aktif', es: 'Habilitado', zh: '已启用', tl: 'Naka-enable' },
+  delete: { en: 'Delete', id: 'Hapus', es: 'Eliminar', zh: '删除', tl: 'I-delete' },
+  edit: { en: 'Edit', id: 'Edit', es: 'Editar', zh: '编辑', tl: 'I-edit' },
 
   // Categories
   cat_sell: { en: 'Sell', id: 'Jual', es: 'Venta', zh: '销售', tl: 'Benta' },

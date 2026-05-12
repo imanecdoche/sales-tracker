@@ -1,37 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { collection, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Languages } from 'lucide-react';
+import { useStorage } from '../contexts/StorageContext';
+import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Database, Cloud, Tablet, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
-  const { currentUser, setCurrentUser } = useApp();
+  const { currentUser, setCurrentUser, adaptMode, setAdaptMode } = useApp();
   const { language, setLanguage, t } = useLanguage();
+  const { mode, setModeWithSync, employees, loading, addEmployee, updateEmployee } = useStorage();
   const navigate = useNavigate();
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setEmployees(users);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-      setLoading(false);
-    });
-    return unsubscribe;
-  }, []);
-
   const toggleStatus = async (id: string, active: boolean) => {
     try {
-      await updateDoc(doc(db, 'users', id), { active: !active });
+      await updateEmployee(id, { active: !active });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
+      console.error(error);
     }
   };
 
@@ -39,7 +25,7 @@ export default function Settings() {
     e.preventDefault();
     if (!newName.trim()) return;
     try {
-      await addDoc(collection(db, 'users'), {
+      await addEmployee({
         name: newName.trim(),
         active: true,
         role: 'staff'
@@ -47,7 +33,7 @@ export default function Settings() {
       setNewName('');
       setIsAdding(false);
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'users');
+      console.error(error);
     }
   };
 
@@ -55,6 +41,28 @@ export default function Settings() {
     if (window.confirm(t('switchAccount'))) {
       setCurrentUser(null);
       navigate('/');
+    }
+  };
+
+  const handleToggleStorage = async (newMode: 'local' | 'firestore') => {
+    if (mode === newMode) return;
+
+    if (newMode === 'firestore') {
+      const localTrxs = JSON.parse(localStorage.getItem('jeweltrack_local_transactions') || '[]');
+      const localEmps = JSON.parse(localStorage.getItem('jeweltrack_local_employees') || '[]');
+      if (localTrxs.length > 0 || localEmps.length > 0) {
+        if (window.confirm(t('syncPrompt'))) {
+          await setModeWithSync('firestore', true);
+        } else {
+          if (window.confirm(t('deleteLocalPrompt'))) {
+            await setModeWithSync('firestore', false);
+          }
+        }
+      } else {
+        await setModeWithSync('firestore', false);
+      }
+    } else {
+      await setModeWithSync('local');
     }
   };
 
@@ -71,7 +79,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 min-h-full">
+    <div className="px-4 py-6 md:p-6 min-h-full">
       <header className="mb-8">
         <h1 className="text-3xl font-serif text-gray-800 tracking-tight">{t('settings')}</h1>
         <p className="text-sm text-gray-500 font-medium">{t('manageEmployees')}</p>
@@ -149,6 +157,40 @@ export default function Settings() {
         </section>
 
         <section>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('storageMode')}</h2>
+          <div className="bg-white rounded-[24px] p-2 shadow-sm border border-gray-100 flex gap-2">
+            <button
+              onClick={() => handleToggleStorage('local')}
+              className={`flex-1 py-4 px-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
+                mode === 'local'
+                  ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100'
+                  : 'text-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <Database size={24} />
+              <div className="text-center">
+                <p className="text-sm font-bold mb-1">Local</p>
+                <p className="text-[10px] font-medium opacity-80 leading-tight">{t('localDesc')}</p>
+              </div>
+            </button>
+            <button
+              onClick={() => handleToggleStorage('firestore')}
+              className={`flex-1 py-4 px-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
+                mode === 'firestore'
+                  ? 'bg-[#b68c5b] text-white shadow-md'
+                  : 'text-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <Cloud size={24} />
+              <div className="text-center">
+                <p className="text-sm font-bold mb-1">Cloud</p>
+                <p className="text-[10px] font-medium opacity-80 leading-tight">{t('firestoreDesc')}</p>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <section>
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('language')}</h2>
           <div className="bg-white rounded-[24px] p-2 shadow-sm border border-gray-100 flex flex-wrap gap-2">
             {languages.map((lang) => (
@@ -169,19 +211,26 @@ export default function Settings() {
 
         <section>
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('screenAdaptation')}</h2>
-          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <MonitorSmartphone size={24} />
-              </div>
-              <div>
-                <p className="font-semibold text-gray-800">{t('screenAdaptation')}</p>
-                <p className="text-xs text-gray-400">{t('responsiveActive')}</p>
-              </div>
-            </div>
-            <div className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-widest rounded-full">
-              {t('enabled')}
-            </div>
+          <div className="bg-white rounded-[24px] p-2 shadow-sm border border-gray-100 flex flex-col gap-2">
+            {[
+              { id: 'auto', label: 'adaptAuto', icon: MonitorSmartphone },
+              { id: 'portrait', label: 'adaptPortrait', icon: Smartphone },
+              { id: 'landscape', label: 'adaptLandscape', icon: Tablet }
+            ].map((option) => (
+              <button
+                key={option.id}
+                onClick={() => setAdaptMode(option.id as any)}
+                className={`flex items-center gap-4 py-3 px-4 rounded-2xl transition-all ${
+                  adaptMode === option.id 
+                    ? 'bg-[#b68c5b] text-white shadow-md' 
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <option.icon size={20} className={adaptMode === option.id ? 'text-white' : 'text-gray-400'} />
+                <span className="text-sm font-medium">{t(option.label)}</span>
+                {adaptMode === option.id && <div className="ml-auto px-2 py-1 bg-white/20 text-white text-[10px] font-bold uppercase tracking-widest rounded-full">{t('enabled')}</div>}
+              </button>
+            ))}
           </div>
         </section>
 

@@ -2,17 +2,20 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, User, Plus } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useApp } from '../contexts/AppContext';
 
 export default function BottomNav() {
   const { t } = useLanguage();
+  const { isLandscapeLayout } = useApp();
   const location = useLocation();
 
   return (
-    <div className="
-      fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-gray-100 flex items-center justify-around px-2 z-50 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.03)]
-      landscape:fixed landscape:left-0 landscape:top-0 landscape:bottom-0 landscape:w-24 landscape:h-full landscape:flex-col landscape:justify-center landscape:gap-12 landscape:px-0 landscape:border-t-0 landscape:border-r landscape:rounded-none landscape:rounded-r-3xl
-      md:fixed md:left-0 md:top-0 md:bottom-0 md:w-24 md:h-full md:flex-col md:justify-center md:gap-12 md:px-0 md:border-t-0 md:border-r md:rounded-none md:rounded-r-3xl
-    ">
+    <div className={`
+      fixed bg-white z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]
+      ${isLandscapeLayout 
+        ? 'left-0 top-0 bottom-0 w-24 h-full flex flex-col justify-center gap-12 px-0 border-r border-gray-100 rounded-r-3xl' 
+        : 'bottom-0 left-0 right-0 h-20 border-t border-gray-100 flex items-center justify-around px-2 rounded-t-3xl'}
+    `}>
       <NavLink 
         to="/" 
         className={({ isActive }) => 
@@ -25,11 +28,10 @@ export default function BottomNav() {
 
       <NavLink 
         to="/add" 
-        className="
-          relative -top-6 bg-[#b68c5b] text-white p-4 rounded-full shadow-lg shadow-[#b68c5b]/30 transform transition-transform active:scale-95
-          landscape:relative landscape:top-0 landscape:mx-auto
-          md:relative md:top-0 md:mx-auto
-        "
+        className={`
+          bg-[#b68c5b] text-white p-4 rounded-full shadow-lg shadow-[#b68c5b]/30 transform transition-transform active:scale-95
+          ${isLandscapeLayout ? 'mx-auto' : 'relative -top-6'}
+        `}
       >
         <Plus size={28} strokeWidth={2.5} />
       </NavLink>
