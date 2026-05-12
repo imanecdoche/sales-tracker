@@ -4,18 +4,20 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useApp } from '../contexts/AppContext';
 import { format, parseISO } from 'date-fns';
 import { NavLink } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const CATEGORIES = [
-  { id: 'sell', label: 'Sell', color: 'bg-emerald-50 text-emerald-700' },
-  { id: 'buyback', label: 'Buyback', color: 'bg-rose-50 text-rose-700' },
-  { id: 'trade_in', label: 'Trade In', color: 'bg-blue-50 text-blue-700' },
-  { id: 'reviews', label: 'Reviews', color: 'bg-purple-50 text-purple-700' },
-  { id: 'services', label: 'Services', color: 'bg-amber-50 text-amber-700' },
-  { id: 'cnn', label: 'CNN', color: 'bg-slate-50 text-slate-700' },
+  { id: 'sell', label: 'cat_sell', color: 'bg-emerald-50 text-emerald-700' },
+  { id: 'buyback', label: 'cat_buyback', color: 'bg-rose-50 text-rose-700' },
+  { id: 'trade_in', label: 'cat_trade_in', color: 'bg-blue-50 text-blue-700' },
+  { id: 'reviews', label: 'cat_reviews', color: 'bg-purple-50 text-purple-700' },
+  { id: 'services', label: 'cat_services', color: 'bg-amber-50 text-amber-700' },
+  { id: 'cnn', label: 'cat_cnn', color: 'bg-slate-50 text-slate-700' },
 ];
 
 export default function Dashboard() {
   const { currentUser } = useApp();
+  const { t } = useLanguage();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,19 +54,19 @@ export default function Dashboard() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center text-gray-400 font-serif translate-y-1/2 h-full flex flex-col justify-center">Loading Data...</div>;
+    return <div className="p-6 text-center text-gray-400 font-serif translate-y-1/2 h-full flex flex-col justify-center">{t('loading')}</div>;
   }
 
   return (
     <div className="p-6 min-h-full">
       <header className="mb-8">
-        <h1 className="text-2xl font-serif text-gray-800 tracking-tight">Hi, {currentUser?.name.split(' ')[0]}!</h1>
-        <p className="text-sm text-gray-500 font-medium tracking-wide">Ready for today's sales?</p>
+        <h1 className="text-2xl font-serif text-gray-800 tracking-tight">{t('hi')}, {currentUser?.name.split(' ')[0]}!</h1>
+        <p className="text-sm text-gray-500 font-medium tracking-wide">{t('readySales')}</p>
       </header>
 
       {Object.keys(grouped).length === 0 ? (
         <div className="text-center text-gray-400 mt-20">
-          <p className="font-serif">No transactions yet.</p>
+          <p className="font-serif">{t('noTransactions')}</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -75,7 +77,7 @@ export default function Dashboard() {
             return (
               <div key={dateStr}>
                 <h2 className="text-lg font-serif font-medium text-gray-800 mb-4 border-b border-gray-200/50 pb-2">
-                  {isToday ? 'Today' : format(dateObj, 'dd MMM yyyy')}
+                  {isToday ? t('today') : format(dateObj, 'dd MMM yyyy')}
                 </h2>
                 
                 <div className="grid grid-cols-2 gap-3">
@@ -91,13 +93,13 @@ export default function Dashboard() {
                         to={`/category/${cat.id}?date=${dateStr}`}
                         className={`p-4 rounded-3xl overflow-hidden relative shadow-sm border border-white/50 transition-transform active:scale-95 ${cat.color}`}
                       >
-                        <h3 className="font-medium text-sm mb-3 z-10 relative opacity-90">{cat.label}</h3>
+                        <h3 className="font-medium text-sm mb-3 z-10 relative opacity-90">{t(cat.label)}</h3>
                         <div className="z-10 relative">
                           <p className="text-xl font-light mb-1">
                             {formatRupiah(totalPrice)}
                           </p>
                           <div className="flex gap-3 text-xs opacity-75 font-medium tracking-wide border-t border-current/10 pt-2 mt-2">
-                            <span>{totalQty} items</span>
+                            <span>{totalQty} {t('items')}</span>
                             <span>{totalGrams.toFixed(2)}g</span>
                           </div>
                         </div>

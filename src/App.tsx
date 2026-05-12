@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import LoginScreen from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AddTransaction from './pages/AddTransaction';
@@ -38,18 +39,20 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AppProvider>
-      <Router>
-        <AuthWrapper>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/add" element={<AddTransaction />} />
-            <Route path="/edit/:id" element={<AddTransaction />} />
-            <Route path="/category/:categoryId" element={<CategoryDetail />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </AuthWrapper>
-      </Router>
+      <LanguageProvider>
+        <Router>
+          <AuthWrapper>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/add" element={<AddTransaction />} />
+              <Route path="/edit/:id" element={<AddTransaction />} />
+              <Route path="/category/:categoryId" element={<CategoryDetail />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </AuthWrapper>
+        </Router>
+      </LanguageProvider>
     </AppProvider>
   );
 }

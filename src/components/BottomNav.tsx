@@ -1,10 +1,10 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, User, Plus } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function BottomNav() {
-  const { setCurrentUser } = useApp();
+  const { t } = useLanguage();
   const location = useLocation();
 
   return (
@@ -20,7 +20,7 @@ export default function BottomNav() {
         }
       >
         <Home size={24} strokeWidth={location.pathname === '/' ? 2.5 : 2} />
-        <span className="text-[10px] font-medium uppercase tracking-wider">Home</span>
+        <span className="text-[10px] font-medium uppercase tracking-wider">{t('home')}</span>
       </NavLink>
 
       <NavLink 
@@ -41,7 +41,7 @@ export default function BottomNav() {
         }
       >
         <User size={24} strokeWidth={location.pathname === '/settings' ? 2.5 : 2} />
-        <span className="text-[10px] font-medium uppercase tracking-wider">Settings</span>
+        <span className="text-[10px] font-medium uppercase tracking-wider">{t('settingsNav')}</span>
       </NavLink>
     </div>
   );

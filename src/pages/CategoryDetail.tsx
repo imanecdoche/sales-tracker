@@ -4,15 +4,16 @@ import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc } from 'f
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useApp } from '../contexts/AppContext';
 import { format, parseISO } from 'date-fns';
-import { ChevronLeft, Trash2, Edit3, ArrowRight } from 'lucide-react';
+import { ChevronLeft, Trash2, Edit3 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const CATEGORIES: Record<string, { label: string, color: string }> = {
-  sell: { label: 'Sell', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-  buyback: { label: 'Buyback', color: 'bg-rose-50 text-rose-700 border-rose-100' },
-  trade_in: { label: 'Trade In', color: 'bg-blue-50 text-blue-700 border-blue-100' },
-  reviews: { label: 'Reviews', color: 'bg-purple-50 text-purple-700 border-purple-100' },
-  services: { label: 'Services', color: 'bg-amber-50 text-amber-700 border-amber-100' },
-  cnn: { label: 'CNN', color: 'bg-slate-50 text-slate-700 border-slate-100' },
+  sell: { label: 'cat_sell', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+  buyback: { label: 'cat_buyback', color: 'bg-rose-50 text-rose-700 border-rose-100' },
+  trade_in: { label: 'cat_trade_in', color: 'bg-blue-50 text-blue-700 border-blue-100' },
+  reviews: { label: 'cat_reviews', color: 'bg-purple-50 text-purple-700 border-purple-100' },
+  services: { label: 'cat_services', color: 'bg-amber-50 text-amber-700 border-amber-100' },
+  cnn: { label: 'cat_cnn', color: 'bg-slate-50 text-slate-700 border-slate-100' },
 };
 
 export default function CategoryDetail() {
@@ -21,6 +22,7 @@ export default function CategoryDetail() {
   const dateStr = searchParams.get('date') || format(new Date(), 'yyyy-MM-dd');
   const navigate = useNavigate();
   const { currentUser } = useApp();
+  const { t } = useLanguage();
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,10 +53,12 @@ export default function CategoryDetail() {
   }, [currentUser, categoryId, dateStr]);
 
   const handleDelete = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'transactions', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `transactions/${id}`);
+    if (window.confirm(t('confirmDelete'))) {
+      try {
+        await deleteDoc(doc(db, 'transactions', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `transactions/${id}`);
+      }
     }
   };
 
@@ -63,18 +67,18 @@ export default function CategoryDetail() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center text-gray-400 font-serif translate-y-1/2 h-full flex flex-col justify-center">Loading Records...</div>;
+    return <div className="p-6 text-center text-gray-400 font-serif translate-y-1/2 h-full flex flex-col justify-center">{t('loading')}</div>;
   }
 
   return (
     <div className="min-h-full">
       <div className="p-6">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors mb-6 font-medium text-sm">
-          <ChevronLeft size={16} /> Back
+          <ChevronLeft size={16} /> {t('back')}
         </button>
 
         <header className="mb-8">
-          <h1 className="text-3xl font-serif text-gray-800 tracking-tight">{category.label}</h1>
+          <h1 className="text-3xl font-serif text-gray-800 tracking-tight">{t(category.label)}</h1>
           <p className="text-sm text-gray-400 font-medium tracking-wide mt-1">
             {format(parseISO(dateStr), 'EEEE, dd MMMM yyyy')}
           </p>
@@ -82,7 +86,7 @@ export default function CategoryDetail() {
 
         {transactions.length === 0 ? (
           <div className="bg-white rounded-3xl p-8 text-center shadow-sm border border-gray-100">
-            <p className="text-gray-400 font-serif italic">No records found for this day.</p>
+            <p className="text-gray-400 font-serif italic">{t('noRecords')}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -104,11 +108,11 @@ export default function CategoryDetail() {
 
                 <div className="flex bg-[#f8f6f3] rounded-2xl p-3 mb-4">
                   <div className="flex-1 text-center border-r border-gray-200/50">
-                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Qty</p>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('qtyLabel')}</p>
                     <p className="font-serif text-lg text-gray-700 leading-none">{t.qty}</p>
                   </div>
                   <div className="flex-1 text-center">
-                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Weight</p>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('weightLabel')}</p>
                     <p className="font-serif text-lg text-gray-700 leading-none">{t.gram.toFixed(2)}<span className="text-xs text-gray-400 ml-1">g</span></p>
                   </div>
                 </div>

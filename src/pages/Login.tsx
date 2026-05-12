@@ -3,15 +3,11 @@ import { useApp } from '../contexts/AppContext';
 import { collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, Plus } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-export function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function LoginScreen() {
   const { setCurrentUser } = useApp();
+  const { t } = useLanguage();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -46,7 +42,7 @@ export default function LoginScreen() {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center font-serif text-gray-500">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center font-serif text-gray-500">{t('loading')}</div>;
   }
 
   return (
@@ -58,7 +54,7 @@ export default function LoginScreen() {
         </div>
 
         <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
-          <h2 className="text-xl font-serif mb-6 text-center">Select Employee</h2>
+          <h2 className="text-xl font-serif mb-6 text-center">{t('selectEmployee')}</h2>
           
           <div className="space-y-3 mb-6">
             {employees.length === 0 && !isAdding && (
@@ -85,7 +81,7 @@ export default function LoginScreen() {
               onClick={() => setIsAdding(true)}
               className="w-full py-4 text-sm font-medium text-[#b68c5b] flex items-center justify-center gap-2 hover:bg-[#b68c5b]/5 rounded-xl transition-colors"
             >
-              <Plus size={16} /> Add New Employee
+              <Plus size={16} /> {t('addNew')}
             </button>
           ) : (
             <form onSubmit={handleAddEmployee} className="flex gap-2">

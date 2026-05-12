@@ -5,9 +5,11 @@ import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Check, X, Save } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function AddTransaction() {
   const { currentUser } = useApp();
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -89,12 +91,12 @@ export default function AddTransaction() {
   };
 
   const TYPES = [
-    { id: 'sell', label: 'Sell' },
-    { id: 'buyback', label: 'Buyback' },
-    { id: 'trade_in', label: 'Trade In' },
-    { id: 'reviews', label: 'Review' },
-    { id: 'services', label: 'Service' },
-    { id: 'cnn', label: 'CNN' },
+    { id: 'sell', label: 'cat_sell' },
+    { id: 'buyback', label: 'cat_buyback' },
+    { id: 'trade_in', label: 'cat_trade_in' },
+    { id: 'reviews', label: 'cat_reviews' },
+    { id: 'services', label: 'cat_services' },
+    { id: 'cnn', label: 'cat_cnn' },
   ];
 
   return (
@@ -102,7 +104,7 @@ export default function AddTransaction() {
       <div className="p-6 pb-24">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-serif text-[#b68c5b] tracking-tight">
-            {id ? 'Edit Record' : 'Add Record'}
+            {id ? t('editRecord') : t('addRecord')}
           </h1>
           <button onClick={() => navigate(-1)} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-gray-400 shadow-sm border border-gray-100">
             <X size={20} />
@@ -110,7 +112,7 @@ export default function AddTransaction() {
         </div>
 
         {fetching ? (
-          <div className="text-center p-12 text-gray-400 font-serif">Loading data...</div>
+          <div className="text-center p-12 text-gray-400 font-serif">{t('loading')}</div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="bg-white p-2 rounded-3xl shadow-sm border border-gray-100 flex overflow-x-auto gap-2 hide-scrollbar">
@@ -125,7 +127,7 @@ export default function AddTransaction() {
                       : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                   }`}
                 >
-                  {type.label}
+                  {t(type.label)}
                 </button>
               ))}
             </div>
@@ -133,7 +135,7 @@ export default function AddTransaction() {
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Quantity</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('quantity')}</label>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -144,7 +146,7 @@ export default function AddTransaction() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Weight (g)</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('weight')}</label>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -158,7 +160,7 @@ export default function AddTransaction() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Total Price (Rp)</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('totalPrice')}</label>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -170,25 +172,25 @@ export default function AddTransaction() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Customer Name</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('customerName')}</label>
                 <input
                   type="text"
                   value={formData.customerName}
                   onChange={e => setFormData({ ...formData, customerName: e.target.value })}
-                  placeholder="Walk-in"
+                  placeholder={t('walkIn')}
                   className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Notes (Optional)</label>
-                <textarea
-                  value={formData.notes}
-                  onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Any special requests or details..."
-                  rows={2}
-                  className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-sm outline-none focus:ring-2 focus:ring-[#b68c5b]/20 resize-none"
-                />
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('notes')}</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder={t('notesPlaceholder')}
+                    rows={2}
+                    className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-sm outline-none focus:ring-2 focus:ring-[#b68c5b]/20 resize-none"
+                  />
               </div>
             </div>
 
@@ -202,11 +204,11 @@ export default function AddTransaction() {
                 "
               >
                 {loading ? (
-                  <span className="landscape:hidden">Saving...</span>
+                  <span className="landscape:hidden">{t('loading')}</span>
                 ) : (
                   <>
                     <span className="landscape:hidden flex items-center gap-2">
-                      <Check size={20} /> {id ? 'Update Record' : 'Save Record'}
+                      <Check size={20} /> {id ? t('update') : t('save')}
                     </span>
                     <span className="hidden landscape:block">
                       <Save size={28} />

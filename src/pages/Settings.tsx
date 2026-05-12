@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useLanguage } from '../contexts/LanguageContext';
+import { collection, onSnapshot, doc, updateDoc, addDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone } from 'lucide-react';
+import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Languages } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
   const { currentUser, setCurrentUser } = useApp();
+  const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,26 +52,34 @@ export default function Settings() {
   };
 
   const handleLogout = () => {
-    if (window.confirm('Switch employee account?')) {
+    if (window.confirm(t('switchAccount'))) {
       setCurrentUser(null);
       navigate('/');
     }
   };
 
+  const languages = [
+    { code: 'id', name: '🇮🇩 Indonesia' },
+    { code: 'en', name: '🇺🇸 English' },
+    { code: 'es', name: '🇪🇸 Español' },
+    { code: 'zh', name: '🇨🇳 Mandarin' },
+    { code: 'tl', name: '🇵🇭 Tagalog' },
+  ];
+
   if (loading) {
-    return <div className="p-12 text-center text-gray-400 font-serif">Loading Settings...</div>;
+    return <div className="p-12 text-center text-gray-400 font-serif">{t('loading')}</div>;
   }
 
   return (
     <div className="p-6 min-h-full">
       <header className="mb-8">
-        <h1 className="text-3xl font-serif text-gray-800 tracking-tight">Settings</h1>
-        <p className="text-sm text-gray-500 font-medium">Manage employees & preferences</p>
+        <h1 className="text-3xl font-serif text-gray-800 tracking-tight">{t('settings')}</h1>
+        <p className="text-sm text-gray-500 font-medium">{t('manageEmployees')}</p>
       </header>
 
       <div className="space-y-6">
         <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">Current Account</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('currentAccount')}</h2>
           <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-[#b68c5b]/10 flex items-center justify-center text-[#b68c5b]">
@@ -91,12 +101,12 @@ export default function Settings() {
 
         <section>
           <div className="flex items-center justify-between mb-4 ml-1">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">Employee List</h2>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">{t('employeeList')}</h2>
             <button 
               onClick={() => setIsAdding(true)}
               className="text-xs font-bold text-[#b68c5b] uppercase tracking-wider flex items-center gap-1"
             >
-              <Plus size={14} /> Add New
+              <Plus size={14} /> {t('addNew')}
             </button>
           </div>
           
@@ -139,19 +149,38 @@ export default function Settings() {
         </section>
 
         <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">App Features</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('language')}</h2>
+          <div className="bg-white rounded-[24px] p-2 shadow-sm border border-gray-100 flex flex-wrap gap-2">
+            {languages.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => setLanguage(lang.code as any)}
+                className={`flex-1 min-w-[100px] py-3 px-4 rounded-2xl text-sm font-medium transition-all ${
+                  language === lang.code 
+                    ? 'bg-[#b68c5b] text-white shadow-md scale-105' 
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {lang.name}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('screenAdaptation')}</h2>
           <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                 <MonitorSmartphone size={24} />
               </div>
               <div>
-                <p className="font-semibold text-gray-800">Screen Adaptation</p>
-                <p className="text-xs text-gray-400">Responsive landscape & tablet mode active</p>
+                <p className="font-semibold text-gray-800">{t('screenAdaptation')}</p>
+                <p className="text-xs text-gray-400">{t('responsiveActive')}</p>
               </div>
             </div>
             <div className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-widest rounded-full">
-              Enabled
+              {t('enabled')}
             </div>
           </div>
         </section>
