@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X } from 'lucide-react';
+import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
@@ -135,6 +135,24 @@ export default function Settings() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">App Features</h2>
+          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <MonitorSmartphone size={24} />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-800">Screen Adaptation</p>
+                <p className="text-xs text-gray-400">Responsive landscape & tablet mode active</p>
+              </div>
+            </div>
+            <div className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-widest rounded-full">
+              Enabled
+            </div>
           </div>
         </section>
 

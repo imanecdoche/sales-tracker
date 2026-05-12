@@ -4,7 +4,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Check, X } from 'lucide-react';
+import { Check, X, Save } from 'lucide-react';
 
 export default function AddTransaction() {
   const { currentUser } = useApp();
@@ -192,13 +192,27 @@ export default function AddTransaction() {
               </div>
             </div>
 
-            <div className="pt-4">
+            <div className="pt-4 landscape:pt-0">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#2c2a29] text-white py-5 rounded-full font-medium text-lg tracking-wide flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-70 shadow-lg"
+                className="
+                  w-full bg-[#2c2a29] text-white py-5 rounded-full font-medium text-lg tracking-wide flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-70 shadow-lg
+                  landscape:fixed landscape:bottom-8 landscape:right-8 landscape:w-16 landscape:h-16 landscape:p-0 landscape:rounded-full landscape:shadow-2xl landscape:z-50
+                "
               >
-                {loading ? 'Saving...' : <><Check size={20} /> {id ? 'Update Record' : 'Save Record'}</>}
+                {loading ? (
+                  <span className="landscape:hidden">Saving...</span>
+                ) : (
+                  <>
+                    <span className="landscape:hidden flex items-center gap-2">
+                      <Check size={20} /> {id ? 'Update Record' : 'Save Record'}
+                    </span>
+                    <span className="hidden landscape:block">
+                      <Save size={28} />
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </form>

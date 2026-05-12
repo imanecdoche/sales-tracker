@@ -24,9 +24,11 @@ function AuthWrapper({ children }: { children: React.ReactNode }) {
   const shouldHideNavbar = hideNavbarPaths.some(path => location.pathname.startsWith(path));
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-bg-warm shadow-xl overflow-hidden relative">
-      <div className={`flex-1 overflow-y-auto ${!shouldHideNavbar ? 'pb-32' : ''}`}>
-        {children}
+    <div className="flex flex-col h-screen bg-bg-warm shadow-xl overflow-hidden relative landscape:flex-row md:flex-row">
+      <div className={`flex-1 overflow-y-auto ${!shouldHideNavbar ? 'pb-32 landscape:pb-0 md:pb-0 landscape:pl-24 md:pl-24' : ''}`}>
+        <div className="max-w-md mx-auto landscape:max-w-none md:max-w-none h-full">
+          {children}
+        </div>
       </div>
       {!shouldHideNavbar && <BottomNav />}
     </div>
