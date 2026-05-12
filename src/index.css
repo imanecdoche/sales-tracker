@@ -1,1 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Poppins", ui-serif, Georgia, serif;
+  
+  --color-brand: #b68c5b; /* A soft gold/bronze */
+  --color-brand-light: #e6d8cb;
+  --color-bg-warm: #fcfaf7; /* More cream accent */
+}
+
+body {
+  background-color: var(--color-bg-warm);
+  color: #2c2a29;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbar for clean look */
+::-webkit-scrollbar {
+  display: none;
+}
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

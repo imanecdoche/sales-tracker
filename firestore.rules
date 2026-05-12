@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return true; /* Allowed for simple startup selection without Auth */ }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'active', 'role'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.active is bool
+        && data.role is string && data.role.size() <= 50;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'type'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.type is string && data.type.size() > 0 && data.type.size() <= 50;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['userId', 'type', 'qty', 'gram', 'price', 'customerName', 'date', 'timestamp'])
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.type is string && data.type.size() > 0 && data.type.size() <= 50
+        && data.qty is number
+        && data.gram is number
+        && data.price is number
+        && data.customerName is string && data.customerName.size() <= 200
+        && data.date is string && data.date.size() <= 20
+        && data.timestamp is number
+        && (!('updatedAt' in data) || data.updatedAt is number);
+    }
+
+    function isValidDailySummary(data) {
+      return data.keys().hasAll(['userId', 'date', 'totalTransactions', 'totalGrams', 'totalPrice', 'statsByCategory'])
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.date is string && data.date.size() <= 20
+        && data.totalTransactions is number
+        && data.totalGrams is number
+        && data.totalPrice is number
+        && data.statsByCategory is map;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && isValidId(userId)
+        && isValidUser(incoming())
+        && incoming().keys().size() == 3;
+      allow update: if isSignedIn()
+        && isValidId(userId)
+        && isValidUser(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'active', 'role']);
+      allow delete: if isSignedIn() && isValidId(userId);
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && isValidId(categoryId)
+        && isValidCategory(incoming())
+        && incoming().keys().size() == 2;
+      allow update: if isSignedIn()
+        && isValidId(categoryId)
+        && isValidCategory(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type']);
+      allow delete: if false;
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && isValidId(transactionId)
+        && isValidTransaction(incoming())
+        && (incoming().keys().size() == 8 || (incoming().keys().hasAll(['notes']) && incoming().keys().size() == 9))
+        && (!('notes' in incoming()) || (incoming().notes is string && incoming().notes.size() <= 1000));
+      allow update: if isSignedIn()
+        && isValidId(transactionId)
+        && isValidTransaction(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['type', 'qty', 'gram', 'price', 'customerName', 'notes', 'date', 'timestamp', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(transactionId);
+    }
+
+    match /dailySummaries/{summaryId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && isValidId(summaryId)
+        && isValidDailySummary(incoming())
+        && incoming().keys().size() == 6;
+      allow update: if isSignedIn()
+        && isValidId(summaryId)
+        && isValidDailySummary(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['totalTransactions', 'totalGrams', 'totalPrice', 'statsByCategory']);
+      allow delete: if isSignedIn() && isValidId(summaryId);
+    }
+  }
+}
