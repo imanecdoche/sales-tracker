@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, User, Plus } from 'lucide-react';
+import { Home, User, Plus, BarChart2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 
@@ -19,11 +19,21 @@ export default function BottomNav() {
       <NavLink 
         to="/" 
         className={({ isActive }) => 
-          `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-[#b68c5b]' : 'text-gray-400 hover:text-gray-600'}`
+          `flex flex-col items-center gap-1 transition-colors w-16 ${isActive ? 'text-[#b68c5b]' : 'text-gray-400 hover:text-gray-600'}`
         }
       >
         <Home size={24} strokeWidth={location.pathname === '/' ? 2.5 : 2} />
         <span className="text-[10px] font-medium uppercase tracking-wider">{t('home')}</span>
+      </NavLink>
+
+      <NavLink 
+        to="/analytics" 
+        className={({ isActive }) => 
+          `flex flex-col items-center gap-1 transition-colors w-16 ${isActive ? 'text-[#b68c5b]' : 'text-gray-400 hover:text-gray-600'}`
+        }
+      >
+        <BarChart2 size={24} strokeWidth={location.pathname.startsWith('/analytics') ? 2.5 : 2} />
+        <span className="text-[10px] font-medium uppercase tracking-wider">Recap</span>
       </NavLink>
 
       <NavLink 
@@ -39,7 +49,7 @@ export default function BottomNav() {
       <NavLink 
         to="/settings" 
         className={({ isActive }) => 
-          `flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-[#b68c5b]' : 'text-gray-400 hover:text-gray-600'}`
+          `flex flex-col items-center gap-1 transition-colors w-16 ${isActive ? 'text-[#b68c5b]' : 'text-gray-400 hover:text-gray-600'}`
         }
       >
         <User size={24} strokeWidth={location.pathname === '/settings' ? 2.5 : 2} />

@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import AddTransaction from './pages/AddTransaction';
 import CategoryDetail from './pages/CategoryDetail';
 import Settings from './pages/Settings';
+import Analytics from './pages/Analytics';
 import BottomNav from './components/BottomNav';
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
@@ -49,6 +50,7 @@ export default function App() {
                 <Route path="/add" element={<AddTransaction />} />
                 <Route path="/edit/:id" element={<AddTransaction />} />
                 <Route path="/category/:categoryId" element={<CategoryDetail />} />
+                <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
