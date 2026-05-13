@@ -18,7 +18,9 @@ interface StorageContextType {
   deleteTransaction: (id: string) => Promise<void>;
   addEmployee: (data: any) => Promise<void>;
   updateEmployee: (id: string, data: any) => Promise<void>;
+  deleteEmployee: (id: string) => Promise<void>;
   getTransaction: (id: string) => Promise<any>;
+  bulkImport: (data: { transactions?: any[], summaries?: any[], employees?: any[] }) => Promise<void>;
 }
 
 const StorageContext = createContext<StorageContextType | undefined>(undefined);
@@ -217,6 +219,15 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteEmployee = async (id: string) => {
+    if (mode === 'local') {
+      const emps = employees.filter(e => e.id !== id);
+      saveLocalEmps(emps);
+    } else {
+      await deleteDoc(doc(db, 'users', id));
+    }
+  };
+
   const getTransaction = async (id: string) => {
     if (mode === 'local') {
       return transactions.find(t => t.id === id) || null;
@@ -226,11 +237,67 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const bulkImport = async (importData: { transactions?: any[], summaries?: any[], employees?: any[] }) => {
+    setLoading(true);
+    try {
+      if (mode === 'local') {
+        if (importData.transactions) {
+          const currentTrxs = JSON.parse(localStorage.getItem('jeweltrack_local_transactions') || '[]');
+          const merged = [...currentTrxs, ...importData.transactions.map(t => ({ ...t, id: t.id || crypto.randomUUID() }))];
+          saveLocalTrxs(merged);
+        }
+        if (importData.summaries) {
+          const currentSums = JSON.parse(localStorage.getItem('jeweltrack_local_transaction_summaries') || '[]');
+          const merged = [...currentSums, ...importData.summaries.map(s => ({ ...s, id: s.id || crypto.randomUUID() }))];
+          saveLocalTransactionSummaries(merged);
+        }
+        if (importData.employees) {
+          const currentEmps = JSON.parse(localStorage.getItem('jeweltrack_local_employees') || '[]');
+          const merged = [...currentEmps, ...importData.employees.map(e => ({ ...e, id: e.id || crypto.randomUUID() }))];
+          saveLocalEmps(merged);
+        }
+      } else {
+        const batch = writeBatch(db);
+        
+        if (importData.transactions) {
+          importData.transactions.forEach(t => {
+            const { id, ...data } = t;
+            const ref = id ? doc(collection(db, 'transactions'), id) : doc(collection(db, 'transactions'));
+            batch.set(ref, data, { merge: true });
+          });
+        }
+        
+        if (importData.summaries) {
+          importData.summaries.forEach(s => {
+            const { id, ...data } = s;
+            const ref = id ? doc(collection(db, 'transaction_summaries'), id) : doc(collection(db, 'transaction_summaries'));
+            batch.set(ref, data, { merge: true });
+          });
+        }
+        
+        if (importData.employees) {
+          importData.employees.forEach(e => {
+            const { id, ...data } = e;
+            const ref = id ? doc(collection(db, 'users'), id) : doc(collection(db, 'users'));
+            batch.set(ref, data, { merge: true });
+          });
+        }
+        
+        await batch.commit();
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <StorageContext.Provider value={{
       mode, setModeWithSync, transactions, transactionSummaries, employees, loading,
       addTransaction, addPastDataSummary, updateTransaction, deleteTransaction,
-      addEmployee, updateEmployee, getTransaction
+      addEmployee, updateEmployee, deleteEmployee, getTransaction, bulkImport
     }}>
       {children}
     </StorageContext.Provider>

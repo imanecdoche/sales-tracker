@@ -3,17 +3,43 @@ import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useStorage } from '../contexts/StorageContext';
 import { useDialog } from '../contexts/DialogContext';
-import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Database, Cloud, Tablet, Smartphone } from 'lucide-react';
+import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Database, Cloud, Tablet, Smartphone, Download, Upload, Trash2, Key } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
   const { currentUser, setCurrentUser, adaptMode, setAdaptMode } = useApp();
   const { language, setLanguage, t } = useLanguage();
-  const { mode, setModeWithSync, employees, loading, addEmployee, updateEmployee } = useStorage();
+  const { mode, setModeWithSync, employees, loading, addEmployee, updateEmployee, deleteEmployee, transactions, transactionSummaries, bulkImport } = useStorage();
   const { confirm } = useDialog();
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [adminId, setAdminId] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const checkAdmin = (val: string) => {
+    setAdminId(val);
+    if (val === 'bj2026') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (id: string, name: string) => {
+    const isConfirmed = await confirm({
+      message: `Are you sure you want to delete employee "${name}"? This action cannot be undone.`,
+      confirmText: 'Delete Forever'
+    });
+    if (isConfirmed) {
+      try {
+        await deleteEmployee(id);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  };
 
   const toggleStatus = async (id: string, active: boolean) => {
     try {
@@ -80,6 +106,72 @@ export default function Settings() {
     }
   };
 
+  const handleExport = () => {
+    const data = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      mode,
+      transactions,
+      summaries: transactionSummaries,
+      employees
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `jeweltrack_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const content = event.target?.result as string;
+          const data = JSON.parse(content);
+          
+          if (!data.transactions && !data.summaries && !data.employees) {
+            throw new Error('Invalid backup file');
+          }
+
+          const isConfirmed = await confirm({
+            message: `Importing data will merge the file contents with your current ${mode} storage. Continue?`,
+            confirmText: 'Import Now'
+          });
+
+          if (isConfirmed) {
+            await bulkImport({
+              transactions: data.transactions,
+              summaries: data.summaries,
+              employees: data.employees
+            });
+            alert('Import successful!');
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Import failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        } finally {
+          setIsImporting(false);
+          // reset input
+          e.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error(err);
+      setIsImporting(false);
+    }
+  };
+
   const languages = [
     { code: 'id', name: '🇮🇩 Indonesia' },
     { code: 'en', name: '🇺🇸 English' },
@@ -100,6 +192,29 @@ export default function Settings() {
       </header>
 
       <div className="space-y-6 pb-20">
+        <section>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">Admin Access</h2>
+          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isAdmin ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                {isAdmin ? <ShieldCheck size={24} /> : <Key size={24} />}
+              </div>
+              <div className="flex-1">
+                <input 
+                  type="password"
+                  placeholder="Enter Admin ID"
+                  className="w-full bg-gray-50 border-none rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
+                  value={adminId}
+                  onChange={(e) => checkAdmin(e.target.value)}
+                />
+                <p className="text-[10px] text-gray-400 mt-1 ml-1 uppercase tracking-wider font-bold">
+                  {isAdmin ? 'Admin Mode Activated' : 'Enter ID to unlock admin features'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section>
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('currentAccount')}</h2>
           <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 flex items-center justify-between">
@@ -164,6 +279,14 @@ export default function Settings() {
                   >
                     {emp.active ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
                   </button>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => handleDeleteEmployee(emp.id, emp.name)}
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -259,6 +382,32 @@ export default function Settings() {
                 <span className="text-[10px] text-gray-500 font-medium">Upload local data to Cloud and switch mode</span>
               </div>
             </button>
+
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-3 py-3 px-4 rounded-2xl transition-all bg-gray-50 text-gray-600 hover:bg-gray-100"
+              >
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                  <Download size={16} />
+                </div>
+                <span className="text-sm font-bold">Export JSON</span>
+              </button>
+
+              <label className="flex items-center gap-3 py-3 px-4 rounded-2xl transition-all bg-gray-50 text-gray-600 hover:bg-gray-100 cursor-pointer">
+                <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                  <Upload size={16} />
+                </div>
+                <span className="text-sm font-bold">Import JSON</span>
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  className="hidden" 
+                  onChange={handleImport}
+                  disabled={isImporting}
+                />
+              </label>
+            </div>
           </div>
         </section>
 
