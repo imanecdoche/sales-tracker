@@ -76,6 +76,19 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       let unsubscribeEmp: (() => void) | undefined;
       let unsubscribeTargets: (() => void) | undefined;
 
+      // Mandatory connection test
+      const testConnection = async () => {
+        try {
+          const { getDocFromServer } = await import('firebase/firestore');
+          await getDocFromServer(doc(db, 'test', 'connection'));
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('the client is offline')) {
+            console.error("Please check your Firebase configuration.");
+          }
+        }
+      };
+      testConnection();
+
       try {
         const uid = firebaseUser.uid;
         
@@ -106,10 +119,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
             setAppTargets(snap.data() as any);
           }
           setLoading(false);
-        }, (err) => {
-          console.error(err);
-          setLoading(false);
-        });
+        }, (err) => handleFirestoreError(err, OperationType.GET, `settings/app_targets_${uid}`));
 
         return () => {
           if (unsubscribeTrx) unsubscribeTrx();
@@ -175,10 +185,14 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
       if (localTargets) {
         const targetRef = doc(db, 'settings', `app_targets_${uid}`);
-        batch.set(targetRef, localTargets);
+        batch.set(targetRef, { ...localTargets, ownerId: uid });
       }
       
-      await batch.commit();
+      try {
+        await batch.commit();
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'batch-sync');
+      }
 
       localStorage.removeItem('jeweltrack_local_transactions');
       localStorage.removeItem('jeweltrack_local_transaction_summaries');
@@ -196,7 +210,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const trxs = [...transactions, { id: crypto.randomUUID(), ...data, timestamp: Date.now() }];
       saveLocalTrxs(trxs);
     } else if (firebaseUser) {
-      await addDoc(collection(db, 'transactions'), { ...data, ownerId: firebaseUser.uid, timestamp: Date.now() });
+      try {
+        await addDoc(collection(db, 'transactions'), { ...data, ownerId: firebaseUser.uid, timestamp: Date.now() });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'transactions');
+      }
     }
   };
 
@@ -205,7 +223,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const sums = [...transactionSummaries, { id: crypto.randomUUID(), ...data }];
       saveLocalTransactionSummaries(sums);
     } else if (firebaseUser) {
-      await addDoc(collection(db, 'transaction_summaries'), { ...data, ownerId: firebaseUser.uid });
+      try {
+        await addDoc(collection(db, 'transaction_summaries'), { ...data, ownerId: firebaseUser.uid });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'transaction_summaries');
+      }
     }
   };
 
@@ -214,7 +236,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const trxs = transactions.map(t => t.id === id ? { ...t, ...data } : t);
       saveLocalTrxs(trxs);
     } else {
-      await updateDoc(doc(db, 'transactions', id), data);
+      try {
+        await updateDoc(doc(db, 'transactions', id), data);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `transactions/${id}`);
+      }
     }
   };
 
@@ -223,7 +249,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const trxs = transactions.filter(t => t.id !== id);
       saveLocalTrxs(trxs);
     } else {
-      await deleteDoc(doc(db, 'transactions', id));
+      try {
+        await deleteDoc(doc(db, 'transactions', id));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `transactions/${id}`);
+      }
     }
   };
 
@@ -232,7 +262,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const emps = [...employees, { id: crypto.randomUUID(), ...data }];
       saveLocalEmps(emps);
     } else if (firebaseUser) {
-      await addDoc(collection(db, 'users'), { ...data, ownerId: firebaseUser.uid });
+      try {
+        await addDoc(collection(db, 'users'), { ...data, ownerId: firebaseUser.uid });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'users');
+      }
     }
   };
 
@@ -241,7 +275,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const emps = employees.map(e => e.id === id ? { ...e, ...data } : e);
       saveLocalEmps(emps);
     } else {
-      await updateDoc(doc(db, 'users', id), data);
+      try {
+        await updateDoc(doc(db, 'users', id), data);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${id}`);
+      }
     }
   };
 
@@ -250,7 +288,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const emps = employees.filter(e => e.id !== id);
       saveLocalEmps(emps);
     } else {
-      await deleteDoc(doc(db, 'users', id));
+      try {
+        await deleteDoc(doc(db, 'users', id));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `users/${id}`);
+      }
     }
   };
 
@@ -258,8 +300,12 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     if (mode === 'local') {
       return transactions.find(t => t.id === id) || null;
     } else {
-      const snap = await getDoc(doc(db, 'transactions', id));
-      return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      try {
+        const snap = await getDoc(doc(db, 'transactions', id));
+        return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `transactions/${id}`);
+      }
     }
   };
 
@@ -310,7 +356,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
           });
         }
         
-        await batch.commit();
+        try {
+          await batch.commit();
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, 'bulk-import');
+        }
       }
     } catch (error) {
       console.error('Import failed:', error);
@@ -326,7 +376,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       setAppTargets(targets);
     } else if (firebaseUser) {
       const uid = firebaseUser.uid;
-      await setDoc(doc(db, 'settings', `app_targets_${uid}`), { ...targets, ownerId: uid }, { merge: true });
+      try {
+        await setDoc(doc(db, 'settings', `app_targets_${uid}`), { ...targets, ownerId: uid }, { merge: true });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `settings/app_targets_${uid}`);
+      }
     }
   };
 

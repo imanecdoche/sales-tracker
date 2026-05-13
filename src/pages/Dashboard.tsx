@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { format, parseISO, isToday, isThisWeek, isThisMonth } from 'date-fns';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useStorage } from '../contexts/StorageContext';
 import { HeaderClock } from '../components/HeaderClock';
-import { motion } from 'motion/react';
-import { Target, TrendingUp, Trophy, Flame } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Target, TrendingUp, Trophy, Flame, Zap } from 'lucide-react';
 
 const CATEGORIES = [
   { id: 'sell', label: 'cat_sell', color: 'bg-emerald-50 text-emerald-700' },
@@ -21,6 +21,7 @@ export default function Dashboard() {
   const { currentUser } = useApp();
   const { t } = useLanguage();
   const { transactions: allTransactions, transactionSummaries: allSummaries, appTargets, loading } = useStorage();
+  const [dailyMode, setDailyMode] = useState<'static' | 'adaptive'>('static');
 
   const currentStats = useMemo(() => {
     let day = 0;
@@ -78,6 +79,43 @@ export default function Dashboard() {
     if (percent < 100) return "Legends are made this month!";
     return "GOAT status confirmed! Incredible!";
   };
+
+  const getProgressStyles = (percent: number) => {
+    if (percent >= 100) return {
+      text: 'text-emerald-600',
+      bg: 'bg-emerald-500',
+      gradient: 'from-emerald-400 to-emerald-600',
+    };
+    if (percent >= 80) return {
+      text: 'text-emerald-500',
+      bg: 'bg-emerald-400',
+      gradient: 'from-emerald-300 to-emerald-500',
+    };
+    if (percent >= 50) return {
+      text: 'text-amber-500',
+      bg: 'bg-amber-500',
+      gradient: 'from-amber-400 to-amber-600',
+    };
+    return {
+      text: 'text-rose-500',
+      bg: 'bg-rose-500',
+      gradient: 'from-rose-400 to-rose-600',
+    };
+  };
+
+  const currentDayOfMonth = new Date().getDate();
+  const remainingMonthlyTarget = Math.max(0, appTargets.monthly - currentStats.month);
+  const adaptiveDailyTarget = remainingMonthlyTarget / currentDayOfMonth;
+  
+  const effectiveDailyTarget = dailyMode === 'static' ? appTargets.daily : adaptiveDailyTarget;
+
+  const dayPercent = effectiveDailyTarget > 0 ? Math.round((currentStats.day / effectiveDailyTarget) * 100) : (currentStats.day > 0 ? 100 : 0);
+  const weekPercent = appTargets.weekly > 0 ? Math.round((currentStats.week / appTargets.weekly) * 100) : 0;
+  const monthPercent = appTargets.monthly > 0 ? Math.round((currentStats.month / appTargets.monthly) * 100) : 0;
+
+  const dayStyles = getProgressStyles(dayPercent);
+  const weekStyles = getProgressStyles(weekPercent);
+  const monthStyles = getProgressStyles(monthPercent);
 
   const transactions = useMemo(() => {
     if (!currentUser) return [];
@@ -154,44 +192,60 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 gap-3">
           {/* Daily */}
-          <div className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100 relative overflow-hidden">
-            <div className="flex justify-between items-end mb-2">
-              <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Daily Goal</p>
-                <div className="flex items-center gap-2">
-                  <Flame size={14} className="text-orange-500" />
-                  <p className="text-lg font-serif font-medium text-gray-800">
-                    {currentStats.day.toFixed(2)} 
-                    <span className="text-[10px] font-sans text-gray-400 font-bold mx-1">/</span>
-                    <span className="text-xs font-sans text-gray-400">{appTargets.daily.toFixed(2)}</span>
-                    <span className="text-[10px] font-sans text-orange-500 font-bold ml-2">{(currentStats.day - appTargets.daily).toFixed(2)}g</span>
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-bold text-[#b68c5b] uppercase tracking-widest">Day %</p>
-                <p className="text-lg font-serif font-medium text-[#b68c5b]">{Math.min(100, Math.round((currentStats.day / appTargets.daily) * 100))}%</p>
-              </div>
-            </div>
-            
-            <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden relative">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, (currentStats.day / appTargets.daily) * 100)}%` }}
-                transition={{ duration: 1, ease: "easeOut" }}
-                className="h-full bg-gradient-to-r from-orange-400 to-orange-500 relative"
+          <div style={{ perspective: 1000 }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={dailyMode}
+                initial={{ opacity: 0, rotateX: 90 }}
+                animate={{ opacity: 1, rotateX: 0 }}
+                exit={{ opacity: 0, rotateX: -90 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setDailyMode(m => m === 'static' ? 'adaptive' : 'static')}
+                className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer"
               >
-                <motion.div 
-                  initial={{ x: "-100%" }}
-                  animate={{ x: "200%" }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                  className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[-20deg]"
-                />
+                <div className="flex justify-between items-end mb-2">
+                  <div>
+                    <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${dailyMode === 'adaptive' ? 'text-indigo-500' : 'text-gray-400'}`}>
+                      {dailyMode === 'static' ? 'Daily Goal' : 'Adaptive Pace'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {dailyMode === 'static' ? <Flame size={14} className={dayStyles.text} /> : <Zap size={14} className={dayStyles.text} />}
+                      <p className="text-lg font-serif font-medium text-gray-800">
+                        {currentStats.day.toFixed(2)} 
+                        <span className="text-[10px] font-sans text-gray-400 font-bold mx-1">/</span>
+                        <span className="text-xs font-sans text-gray-400">{effectiveDailyTarget.toFixed(2)}</span>
+                        <span className={`text-[10px] font-sans font-bold ml-2 ${dayPercent >= 100 ? 'text-emerald-500' : (dailyMode === 'adaptive' ? 'text-indigo-500' : 'text-orange-500')}`}>
+                          {(currentStats.day - effectiveDailyTarget) > 0 ? '+' : ''}{(currentStats.day - effectiveDailyTarget).toFixed(2)}g
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-[10px] font-bold uppercase tracking-widest ${dayStyles.text}`}>Day %</p>
+                    <p className={`text-lg font-serif font-medium ${dayStyles.text}`}>{Math.min(100, dayPercent)}%</p>
+                  </div>
+                </div>
+                
+                <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden relative">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, dayPercent)}%` }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    className={`h-full bg-gradient-to-r ${dayStyles.gradient} relative`}
+                  >
+                    <motion.div 
+                      initial={{ x: "-100%" }}
+                      animate={{ x: "200%" }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                      className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[-20deg]"
+                    />
+                  </motion.div>
+                </div>
+                <p className="text-[9px] font-medium text-gray-400 mt-2 flex items-center gap-1 italic">
+                  {dayPercent >= 100 ? <span className="text-emerald-500">🏆</span> : '✨'} {getTagline(dayPercent)}
+                </p>
               </motion.div>
-            </div>
-            <p className="text-[9px] font-medium text-gray-400 mt-2 flex items-center gap-1 italic">
-              ✨ {getTagline((currentStats.day / appTargets.daily) * 100)}
-            </p>
+            </AnimatePresence>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -199,13 +253,13 @@ export default function Dashboard() {
             <div className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100 overflow-hidden">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Weekly</p>
               <div className="flex items-center gap-1 mb-2">
-                <TrendingUp size={12} className="text-blue-500" />
+                <TrendingUp size={12} className={weekStyles.text} />
                 <p className="text-sm font-serif font-medium">
                   {currentStats.week.toFixed(2)}
                   <span className="text-[9px] font-sans text-gray-300 font-bold mx-0.5">/</span>
                   <span className="text-[10px] font-sans text-gray-400">{appTargets.weekly.toFixed(0)}</span>
-                  <span className={`text-[9px] font-sans font-bold ml-1.5 ${currentStats.week >= appTargets.weekly ? 'text-blue-600' : 'text-blue-400'}`}>
-                    {(currentStats.week - appTargets.weekly).toFixed(2)}g
+                  <span className={`text-[9px] font-sans font-bold ml-1.5 ${weekPercent >= 100 ? 'text-emerald-600' : 'text-gray-400'}`}>
+                    {(currentStats.week - appTargets.weekly) > 0 ? '+' : ''}{(currentStats.week - appTargets.weekly).toFixed(2)}g
                   </span>
                 </p>
               </div>
@@ -214,7 +268,7 @@ export default function Dashboard() {
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (currentStats.week / appTargets.weekly) * 100)}%` }}
                   transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-                  className="h-full bg-blue-500"
+                  className={`h-full ${weekStyles.bg}`}
                 >
                   <motion.div 
                     initial={{ x: "-100%" }}
@@ -224,8 +278,8 @@ export default function Dashboard() {
                   />
                 </motion.div>
               </div>
-              <p className="text-[8px] font-medium text-gray-400 mt-2 italic leading-tight">
-                {getWeeklyTagline((currentStats.week / appTargets.weekly) * 100)}
+              <p className="text-[8px] font-medium text-gray-400 mt-2 italic leading-tight flex items-center gap-1">
+                {weekPercent >= 100 && <span className="text-emerald-500">🏆</span>} {getWeeklyTagline(weekPercent)}
               </p>
             </div>
 
@@ -233,13 +287,13 @@ export default function Dashboard() {
             <div className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100 overflow-hidden">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Monthly</p>
               <div className="flex items-center gap-1 mb-2">
-                <Trophy size={12} className="text-amber-500" />
+                <Trophy size={12} className={monthStyles.text} />
                 <p className="text-sm font-serif font-medium">
                   {currentStats.month.toFixed(2)}
                   <span className="text-[9px] font-sans text-gray-300 font-bold mx-0.5">/</span>
                   <span className="text-[10px] font-sans text-gray-400">{appTargets.monthly.toFixed(0)}</span>
-                  <span className={`text-[9px] font-sans font-bold ml-1.5 ${currentStats.month >= appTargets.monthly ? 'text-amber-600' : 'text-[#b68c5b]/70'}`}>
-                    {(currentStats.month - appTargets.monthly).toFixed(2)}g
+                  <span className={`text-[9px] font-sans font-bold ml-1.5 ${monthPercent >= 100 ? 'text-emerald-600' : 'text-gray-400'}`}>
+                    {(currentStats.month - appTargets.monthly) > 0 ? '+' : ''}{(currentStats.month - appTargets.monthly).toFixed(2)}g
                   </span>
                 </p>
               </div>
@@ -248,7 +302,7 @@ export default function Dashboard() {
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(100, (currentStats.month / appTargets.monthly) * 100)}%` }}
                   transition={{ duration: 1, ease: "easeOut", delay: 0.4 }}
-                  className="h-full bg-[#b68c5b]"
+                  className={`h-full ${monthStyles.bg}`}
                 >
                   <motion.div 
                     initial={{ x: "-100%" }}
@@ -258,8 +312,8 @@ export default function Dashboard() {
                   />
                 </motion.div>
               </div>
-              <p className="text-[8px] font-medium text-gray-400 mt-2 italic leading-tight">
-                {getMonthlyTagline((currentStats.month / appTargets.monthly) * 100)}
+              <p className="text-[8px] font-medium text-gray-400 mt-2 italic leading-tight flex items-center gap-1">
+                {monthPercent >= 100 && <span className="text-emerald-500">🏆</span>} {getMonthlyTagline(monthPercent)}
               </p>
             </div>
           </div>

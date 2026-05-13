@@ -40,30 +40,32 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerId == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
       allow create: if isSignedIn() && isValidUser(incoming());
       allow update: if isSignedIn() && isOwner(existing()) && isValidUser(incoming());
       allow delete: if isSignedIn() && isOwner(existing());
     }
 
     match /transactions/{transactionId} {
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerId == request.auth.uid);
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
       allow create: if isSignedIn() && isValidTransaction(incoming());
       allow update: if isSignedIn() && isOwner(existing()) && isValidTransaction(incoming());
       allow delete: if isSignedIn() && isOwner(existing());
     }
     
     match /transaction_summaries/{summaryId} {
+      allow get: if isSignedIn() && (resource == null || resource.data.ownerId == request.auth.uid);
       allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
       allow create: if isSignedIn() && isValidTransactionSummary(incoming());
       allow update: if isSignedIn() && isOwner(existing()) && isValidTransactionSummary(incoming());
       allow delete: if isSignedIn() && isOwner(existing());
     }
 
     match /settings/{settingId} {
-       allow read: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+       allow get: if isSignedIn() && (resource == null || settingId == "app_targets_" + request.auth.uid);
+       allow list: if false;
        allow write: if isSignedIn() && isValidTarget(incoming());
     }
   }
