@@ -3,13 +3,14 @@ import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useStorage } from '../contexts/StorageContext';
 import { useDialog } from '../contexts/DialogContext';
-import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Database, Cloud, Tablet, Smartphone, Download, Upload, Trash2, Key } from 'lucide-react';
+import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Database, Cloud, Tablet, Smartphone, Download, Upload, Trash2, Key, Target, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getDaysInMonth } from 'date-fns';
 
 export default function Settings() {
-  const { currentUser, setCurrentUser, adaptMode, setAdaptMode } = useApp();
+  const { currentUser, setCurrentUser, adaptMode, setAdaptMode, logout, firebaseUser } = useApp();
   const { language, setLanguage, t } = useLanguage();
-  const { mode, setModeWithSync, employees, loading, addEmployee, updateEmployee, deleteEmployee, transactions, transactionSummaries, bulkImport } = useStorage();
+  const { mode, setModeWithSync, employees, loading, addEmployee, updateEmployee, deleteEmployee, transactions, transactionSummaries, bulkImport, appTargets, updateAppTargets } = useStorage();
   const { confirm } = useDialog();
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
@@ -17,6 +18,44 @@ export default function Settings() {
   const [isImporting, setIsImporting] = useState(false);
   const [adminId, setAdminId] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  
+  const [tempTargets, setTempTargets] = useState(appTargets);
+  const [targetError, setTargetError] = useState<string | null>(null);
+
+  const handleUpdateTargets = async () => {
+    const { daily, weekly, monthly } = tempTargets;
+    
+    if (parseFloat(daily as any) >= parseFloat(weekly as any)) {
+      setTargetError('Daily target cannot be greater than weekly');
+      return;
+    }
+    if (parseFloat(weekly as any) >= parseFloat(monthly as any)) {
+      setTargetError('Weekly target cannot be greater than monthly');
+      return;
+    }
+    
+    setTargetError(null);
+    try {
+      await updateAppTargets({
+        daily: parseFloat(daily as any),
+        weekly: parseFloat(weekly as any),
+        monthly: parseFloat(monthly as any)
+      });
+      alert('Targets updated successfully!');
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const resetToDefault = () => {
+    const monthly = 400;
+    const weekly = monthly / 4;
+    const days = getDaysInMonth(new Date());
+    const daily = parseFloat((monthly / days).toFixed(2));
+    
+    setTempTargets({ daily, weekly, monthly });
+    setTargetError(null);
+  };
 
   const checkAdmin = (val: string) => {
     setAdminId(val);
@@ -71,7 +110,7 @@ export default function Settings() {
       confirmText: 'Logout',
     });
     if (isConfirmed) {
-      setCurrentUser(null);
+      await logout();
       navigate('/');
     }
   };
@@ -193,6 +232,64 @@ export default function Settings() {
 
       <div className="space-y-6 pb-20">
         <section>
+          <div className="flex items-center justify-between mb-4 ml-1">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">Sales Targets (Gram)</h2>
+            <button 
+              onClick={resetToDefault}
+              className="text-[10px] font-bold text-[#b68c5b] uppercase tracking-wider flex items-center gap-1 bg-[#b68c5b]/5 px-2 py-1 rounded-lg"
+            >
+              <RefreshCw size={10} /> Reset Default
+            </button>
+          </div>
+          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1 ml-1">Monthly</label>
+                <input 
+                  type="number" 
+                  value={tempTargets.monthly}
+                  onChange={e => setTempTargets({...tempTargets, monthly: parseFloat(e.target.value) || 0})}
+                  className="w-full bg-gray-50 border-none rounded-xl px-3 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1 ml-1">Weekly</label>
+                <input 
+                  type="number" 
+                  value={tempTargets.weekly}
+                  onChange={e => setTempTargets({...tempTargets, weekly: parseFloat(e.target.value) || 0})}
+                  className="w-full bg-gray-50 border-none rounded-xl px-3 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1 ml-1">Daily</label>
+                <input 
+                  type="number" 
+                  value={tempTargets.daily}
+                  step="0.01"
+                  onChange={e => setTempTargets({...tempTargets, daily: parseFloat(e.target.value) || 0})}
+                  className="w-full bg-gray-50 border-none rounded-xl px-3 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
+                />
+              </div>
+            </div>
+
+            {targetError && (
+              <div className="flex items-center gap-2 text-rose-500 bg-rose-50 p-3 rounded-xl text-xs font-medium animate-in fade-in zoom-in duration-200">
+                <AlertTriangle size={14} />
+                {targetError}
+              </div>
+            )}
+
+            <button 
+              onClick={handleUpdateTargets}
+              className="w-full bg-[#b68c5b] text-white py-3 rounded-xl text-sm font-bold shadow-md hover:bg-[#a07b4f] transition-colors"
+            >
+              Update Targets
+            </button>
+          </div>
+        </section>
+
+        <section>
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">Admin Access</h2>
           <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100">
             <div className="flex items-center gap-4">
@@ -224,7 +321,7 @@ export default function Settings() {
               </div>
               <div>
                 <p className="font-semibold text-gray-800">{currentUser?.name}</p>
-                <p className="text-xs text-gray-400 uppercase tracking-wider">{currentUser?.role}</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wider">{firebaseUser?.email}</p>
               </div>
             </div>
             <button 

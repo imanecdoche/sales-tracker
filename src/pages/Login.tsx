@@ -1,88 +1,131 @@
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { User, Plus } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, User as UserIcon, Loader2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useStorage } from '../contexts/StorageContext';
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
 export default function LoginScreen() {
-  const { setCurrentUser } = useApp();
   const { t } = useLanguage();
-  const { employees, loading, addEmployee } = useStorage();
-  const [newName, setNewName] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAddEmployee = async (e: React.FormEvent) => {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim()) return;
+    setLoading(true);
+    setError(null);
+
     try {
-      await addEmployee({
-        name: newName.trim(),
-        active: true,
-        role: 'staff'
-      });
-      setIsAdding(false);
-      setNewName('');
-    } catch (error) {
-      console.error(error);
+      if (isRegistering) {
+        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        await updateProfile(userCredential.user, { displayName: formData.name });
+      } else {
+        await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center font-serif text-gray-500">{t('loading')}</div>;
-  }
-
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-gray-800">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-gray-800 bg-gray-50">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-serif text-[#b68c5b] tracking-tight mb-2">JewelTrack</h1>
-          <p className="text-sm font-medium tracking-widest text-gray-400 uppercase">Sales Performance</p>
+        <div className="text-center mb-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
+          <h1 className="text-5xl font-serif text-[#b68c5b] tracking-tight mb-2">JewelTrack</h1>
+          <p className="text-sm font-medium tracking-widest text-[#b68c5b]/60 uppercase">Cloud Sync System</p>
         </div>
 
-        <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
-          <h2 className="text-xl font-serif mb-6 text-center">{t('selectEmployee')}</h2>
+        <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-[#b68c5b]/5 border border-gray-100 animate-in zoom-in duration-500">
+          <h2 className="text-2xl font-serif mb-8 text-center text-gray-800">
+            {isRegistering ? 'Create Account' : 'Welcome Back'}
+          </h2>
           
-          <div className="space-y-3 mb-6">
-            {employees.length === 0 && !isAdding && (
-              <p className="text-center text-sm text-gray-400 italic">No employees found. Add one below.</p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegistering && (
+              <div className="relative">
+                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  required
+                  placeholder="Full Name"
+                  className="w-full bg-gray-50 rounded-2xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-[#b68c5b]/20 transition-all border border-transparent focus:border-[#b68c5b]/20"
+                  value={formData.name}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
             )}
-            {employees.map(emp => (
-              <button
-                key={emp.id}
-                onClick={() => setCurrentUser({ id: emp.id, name: emp.name, role: emp.role })}
-                className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-50 hover:bg-[#b68c5b] hover:text-white transition-colors duration-200"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center border border-gray-200/50">
-                    <User size={18} />
-                  </div>
-                  <span className="font-medium text-lg">{emp.name}</span>
-                </div>
-              </button>
-            ))}
-          </div>
 
-          {!isAdding ? (
-            <button
-              onClick={() => setIsAdding(true)}
-              className="w-full py-4 text-sm font-medium text-[#b68c5b] flex items-center justify-center gap-2 hover:bg-[#b68c5b]/5 rounded-xl transition-colors"
-            >
-              <Plus size={16} /> {t('addNew')}
-            </button>
-          ) : (
-            <form onSubmit={handleAddEmployee} className="flex gap-2">
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
-                type="text"
-                autoFocus
-                placeholder="Employee Name"
-                className="flex-1 min-w-0 bg-gray-50 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#b68c5b]/20 transition-shadow"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
+                type="email"
+                required
+                placeholder="Email Address"
+                className="w-full bg-gray-50 rounded-2xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-[#b68c5b]/20 transition-all border border-transparent focus:border-[#b68c5b]/20"
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
               />
-              <button type="submit" className="bg-[#b68c5b] text-white px-5 rounded-xl font-medium">Add</button>
-            </form>
-          )}
+            </div>
+
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="password"
+                required
+                placeholder="Password"
+                className="w-full bg-gray-50 rounded-2xl pl-12 pr-4 py-4 outline-none focus:ring-2 focus:ring-[#b68c5b]/20 transition-all border border-transparent focus:border-[#b68c5b]/20"
+                value={formData.password}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-rose-500 bg-rose-50 p-3 rounded-xl border border-rose-100 animate-in shake duration-300">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#b68c5b] text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-[#b68c5b]/20 hover:bg-[#a07b4f] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : isRegistering ? (
+                <>
+                  <UserPlus size={20} /> Register
+                </>
+              ) : (
+                <>
+                  <LogIn size={20} /> Sign In
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="text-sm font-medium text-gray-500 hover:text-[#b68c5b] transition-colors"
+            >
+              {isRegistering ? 'Already have an account? Sign In' : "Don't have an account? Register"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-8 text-center text-xs text-gray-400 font-bold uppercase tracking-widest opacity-50">
+          Powered by JewelTrack Security
         </div>
       </div>
     </div>

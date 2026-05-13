@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../contexts/AppContext';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isToday, isThisWeek, isThisMonth } from 'date-fns';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useStorage } from '../contexts/StorageContext';
 import { HeaderClock } from '../components/HeaderClock';
+import { motion } from 'motion/react';
+import { Target, TrendingUp, Trophy, Flame } from 'lucide-react';
 
 const CATEGORIES = [
   { id: 'sell', label: 'cat_sell', color: 'bg-emerald-50 text-emerald-700' },
@@ -18,7 +20,64 @@ const CATEGORIES = [
 export default function Dashboard() {
   const { currentUser } = useApp();
   const { t } = useLanguage();
-  const { transactions: allTransactions, transactionSummaries: allSummaries, loading } = useStorage();
+  const { transactions: allTransactions, transactionSummaries: allSummaries, appTargets, loading } = useStorage();
+
+  const currentStats = useMemo(() => {
+    let day = 0;
+    let week = 0;
+    let month = 0;
+
+    const myTrxs = allTransactions.filter(t => t.userId === currentUser?.id);
+    const mySums = allSummaries.filter(s => s.createdBy === currentUser?.id);
+
+    myTrxs.forEach(t => {
+      const date = new Date(t.timestamp);
+      let grams = 0;
+      
+      // Only count "Sell" weight (items moving out of store)
+      if (t.type === 'sell' || t.type === 'trade_in') {
+        grams = t.gram || 0;
+      }
+      
+      if (isToday(date)) day += grams;
+      if (isThisWeek(date, { weekStartsOn: 1 })) week += grams;
+      if (isThisMonth(date)) month += grams;
+    });
+
+    mySums.forEach(s => {
+      const d = new Date(`${s.date}T00:00:00`);
+      // For summaries, we assume totalGram represents the intended target metric 
+      // (usually people track target by sales volume)
+      const grams = s.totalGram || 0; 
+      
+      if (isToday(d)) day += grams;
+      if (isThisWeek(d, { weekStartsOn: 1 })) week += grams;
+      if (isThisMonth(d)) month += grams;
+    });
+
+    return { day, week, month };
+  }, [allTransactions, allSummaries, currentUser]);
+
+  const getTagline = (percent: number) => {
+    if (percent === 0) return "Let's start the engine!";
+    if (percent < 30) return "Keep going! You got this.";
+    if (percent < 50) return "Halfway there! Almost home.";
+    if (percent < 80) return "You're on fire today!";
+    if (percent < 100) return "Almost complete! One more push!";
+    return "Target Achieved! Masterpiece!";
+  };
+
+  const getWeeklyTagline = (percent: number) => {
+     if (percent < 50) return "Step by step, day by day.";
+     if (percent < 100) return "Dominating the week!";
+     return "Week goal crushed! Amazing!";
+  };
+
+  const getMonthlyTagline = (percent: number) => {
+    if (percent < 50) return "Consistency is the key to gold.";
+    if (percent < 100) return "Legends are made this month!";
+    return "GOAT status confirmed! Incredible!";
+  };
 
   const transactions = useMemo(() => {
     if (!currentUser) return [];
@@ -85,6 +144,127 @@ export default function Dashboard() {
         </div>
         <HeaderClock />
       </header>
+
+      {/* Targets Section */}
+      <div className="mb-8 space-y-4">
+        <div className="flex items-center gap-2 mb-2 ml-1">
+          <Target size={16} className="text-[#b68c5b]" />
+          <h2 className="text-xs font-bold uppercase tracking-widest text-[#b68c5b]">Progress &amp; Targets</h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          {/* Daily */}
+          <div className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100 relative overflow-hidden">
+            <div className="flex justify-between items-end mb-2">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Daily Goal</p>
+                <div className="flex items-center gap-2">
+                  <Flame size={14} className="text-orange-500" />
+                  <p className="text-lg font-serif font-medium text-gray-800">
+                    {currentStats.day.toFixed(2)} 
+                    <span className="text-[10px] font-sans text-gray-400 font-bold mx-1">/</span>
+                    <span className="text-xs font-sans text-gray-400">{appTargets.daily.toFixed(2)}</span>
+                    <span className="text-[10px] font-sans text-orange-500 font-bold ml-2">{(currentStats.day - appTargets.daily).toFixed(2)}g</span>
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold text-[#b68c5b] uppercase tracking-widest">Day %</p>
+                <p className="text-lg font-serif font-medium text-[#b68c5b]">{Math.min(100, Math.round((currentStats.day / appTargets.daily) * 100))}%</p>
+              </div>
+            </div>
+            
+            <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden relative">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, (currentStats.day / appTargets.daily) * 100)}%` }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="h-full bg-gradient-to-r from-orange-400 to-orange-500 relative"
+              >
+                <motion.div 
+                  initial={{ x: "-100%" }}
+                  animate={{ x: "200%" }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                  className="absolute inset-0 w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent skew-x-[-20deg]"
+                />
+              </motion.div>
+            </div>
+            <p className="text-[9px] font-medium text-gray-400 mt-2 flex items-center gap-1 italic">
+              ✨ {getTagline((currentStats.day / appTargets.daily) * 100)}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Weekly */}
+            <div className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100 overflow-hidden">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Weekly</p>
+              <div className="flex items-center gap-1 mb-2">
+                <TrendingUp size={12} className="text-blue-500" />
+                <p className="text-sm font-serif font-medium">
+                  {currentStats.week.toFixed(2)}
+                  <span className="text-[9px] font-sans text-gray-300 font-bold mx-0.5">/</span>
+                  <span className="text-[10px] font-sans text-gray-400">{appTargets.weekly.toFixed(0)}</span>
+                  <span className={`text-[9px] font-sans font-bold ml-1.5 ${currentStats.week >= appTargets.weekly ? 'text-blue-600' : 'text-blue-400'}`}>
+                    {(currentStats.week - appTargets.weekly).toFixed(2)}g
+                  </span>
+                </p>
+              </div>
+              <div className="h-1.5 w-full bg-gray-50 rounded-full overflow-hidden relative">
+                 <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (currentStats.week / appTargets.weekly) * 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+                  className="h-full bg-blue-500"
+                >
+                  <motion.div 
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "200%" }}
+                    transition={{ duration: 3.5, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-0 w-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                  />
+                </motion.div>
+              </div>
+              <p className="text-[8px] font-medium text-gray-400 mt-2 italic leading-tight">
+                {getWeeklyTagline((currentStats.week / appTargets.weekly) * 100)}
+              </p>
+            </div>
+
+            {/* Monthly */}
+            <div className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100 overflow-hidden">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Monthly</p>
+              <div className="flex items-center gap-1 mb-2">
+                <Trophy size={12} className="text-amber-500" />
+                <p className="text-sm font-serif font-medium">
+                  {currentStats.month.toFixed(2)}
+                  <span className="text-[9px] font-sans text-gray-300 font-bold mx-0.5">/</span>
+                  <span className="text-[10px] font-sans text-gray-400">{appTargets.monthly.toFixed(0)}</span>
+                  <span className={`text-[9px] font-sans font-bold ml-1.5 ${currentStats.month >= appTargets.monthly ? 'text-amber-600' : 'text-[#b68c5b]/70'}`}>
+                    {(currentStats.month - appTargets.monthly).toFixed(2)}g
+                  </span>
+                </p>
+              </div>
+              <div className="h-1.5 w-full bg-gray-50 rounded-full overflow-hidden relative">
+                 <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, (currentStats.month / appTargets.monthly) * 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut", delay: 0.4 }}
+                  className="h-full bg-[#b68c5b]"
+                >
+                  <motion.div 
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "200%" }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-0 w-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                  />
+                </motion.div>
+              </div>
+              <p className="text-[8px] font-medium text-gray-400 mt-2 italic leading-tight">
+                {getMonthlyTagline((currentStats.month / appTargets.monthly) * 100)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="mb-8 flex justify-end">
         <NavLink 

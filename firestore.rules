@@ -10,123 +10,61 @@ service cloud.firestore {
     }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
-    function isSignedIn() { return true; /* Allowed for simple startup selection without Auth */ }
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(data) { return isSignedIn() && data.ownerId == request.auth.uid; }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['name', 'active', 'role'])
+      return data.keys().hasAll(['name', 'active', 'role', 'ownerId'])
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.active is bool
-        && data.role is string && data.role.size() <= 50;
-    }
-
-    function isValidCategory(data) {
-      return data.keys().hasAll(['name', 'type'])
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && data.type is string && data.type.size() > 0 && data.type.size() <= 50;
+        && data.role is string && data.role.size() <= 50
+        && data.ownerId == request.auth.uid;
     }
 
     function isValidTransaction(data) {
-      return data.keys().hasAll(['userId', 'type', 'qty', 'gram', 'price', 'customerName', 'date', 'timestamp'])
-        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
-        && data.type is string && data.type.size() > 0 && data.type.size() <= 50
-        && data.qty is number
-        && data.gram is number
+      return data.keys().hasAll(['userId', 'type', 'qty', 'gram', 'price', 'customerName', 'date', 'timestamp', 'ownerId'])
+        && data.userId is string && data.userId.size() > 0
+        && data.type is string && data.type.size() > 0
         && data.price is number
-        && data.customerName is string && data.customerName.size() <= 200
-        && data.date is string && data.date.size() <= 20
-        && data.timestamp is number
-        && (!('updatedAt' in data) || data.updatedAt is number)
-        && (!('sellQty' in data) || data.sellQty is number)
-        && (!('sellGram' in data) || data.sellGram is number)
-        && (!('sellPrice' in data) || data.sellPrice is number)
-        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000))
-        && (!('itemsData' in data) || (data.itemsData is string && data.itemsData.size() <= 5000))
-        && (!('sellItemsData' in data) || (data.sellItemsData is string && data.sellItemsData.size() <= 5000));
-    }
-
-    function isValidDailySummary(data) {
-      return data.keys().hasAll(['userId', 'date', 'totalTransactions', 'totalGrams', 'totalPrice', 'statsByCategory'])
-        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
-        && data.date is string && data.date.size() <= 20
-        && data.totalTransactions is number
-        && data.totalGrams is number
-        && data.totalPrice is number
-        && data.statsByCategory is map;
+        && data.ownerId == request.auth.uid;
     }
 
     function isValidTransactionSummary(data) {
-      return data.keys().hasAll(['date', 'source', 'categories', 'totalTransactions', 'createdBy', 'timestamp'])
-        && data.date is string && data.date.size() <= 20
-        && data.source is string && data.source.size() <= 50
-        && data.categories is map
-        && data.totalTransactions is number
-        && data.createdBy is string && data.createdBy.size() <= 128
-        && data.timestamp is number;
+      return data.keys().hasAll(['date', 'source', 'categories', 'totalTransactions', 'createdBy', 'timestamp', 'ownerId'])
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidTarget(data) {
+       return data.keys().hasAll(['daily', 'weekly', 'monthly', 'ownerId'])
+         && data.ownerId == request.auth.uid;
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && isValidId(userId)
-        && isValidUser(incoming())
-        && incoming().keys().size() >= 3 && incoming().keys().size() <= 5;
-      allow update: if isSignedIn()
-        && isValidId(userId)
-        && isValidUser(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'active', 'role']);
-      allow delete: if isSignedIn() && isValidId(userId);
-    }
-
-    match /categories/{categoryId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && isValidId(categoryId)
-        && isValidCategory(incoming())
-        && incoming().keys().size() >= 2 && incoming().keys().size() <= 4;
-      allow update: if isSignedIn()
-        && isValidId(categoryId)
-        && isValidCategory(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type']);
-      allow delete: if false;
+      allow read: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidUser(incoming());
+      allow update: if isSignedIn() && isOwner(existing()) && isValidUser(incoming());
+      allow delete: if isSignedIn() && isOwner(existing());
     }
 
     match /transactions/{transactionId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && isValidId(transactionId)
-        && isValidTransaction(incoming())
-        && incoming().keys().size() >= 8 && incoming().keys().size() <= 17;
-      allow update: if isSignedIn()
-        && isValidId(transactionId)
-        && isValidTransaction(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['type', 'qty', 'gram', 'price', 'customerName', 'notes', 'date', 'timestamp', 'updatedAt', 'sellQty', 'sellGram', 'sellPrice', 'itemsData', 'sellItemsData']);
-      allow delete: if isSignedIn() && isValidId(transactionId);
-    }
-
-    match /dailySummaries/{summaryId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && isValidId(summaryId)
-        && isValidDailySummary(incoming())
-        && incoming().keys().size() >= 6 && incoming().keys().size() <= 8;
-      allow update: if isSignedIn()
-        && isValidId(summaryId)
-        && isValidDailySummary(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['totalTransactions', 'totalGrams', 'totalPrice', 'statsByCategory']);
-      allow delete: if isSignedIn() && isValidId(summaryId);
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidTransaction(incoming());
+      allow update: if isSignedIn() && isOwner(existing()) && isValidTransaction(incoming());
+      allow delete: if isSignedIn() && isOwner(existing());
     }
     
     match /transaction_summaries/{summaryId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && isValidId(summaryId)
-        && isValidTransactionSummary(incoming())
-        && incoming().keys().size() >= 6 && incoming().keys().size() <= 8;
-      allow update: if isSignedIn()
-        && isValidId(summaryId)
-        && isValidTransactionSummary(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['categories', 'totalTransactions', 'timestamp']);
-      allow delete: if isSignedIn() && isValidId(summaryId);
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidTransactionSummary(incoming());
+      allow update: if isSignedIn() && isOwner(existing()) && isValidTransactionSummary(incoming());
+      allow delete: if isSignedIn() && isOwner(existing());
+    }
+
+    match /settings/{settingId} {
+       allow read: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+       allow write: if isSignedIn() && isValidTarget(incoming());
     }
   }
 }

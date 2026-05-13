@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, getDoc, writeBatch, setDoc, query, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useApp } from './AppContext';
 
@@ -21,11 +21,14 @@ interface StorageContextType {
   deleteEmployee: (id: string) => Promise<void>;
   getTransaction: (id: string) => Promise<any>;
   bulkImport: (data: { transactions?: any[], summaries?: any[], employees?: any[] }) => Promise<void>;
+  appTargets: { daily: number; weekly: number; monthly: number };
+  updateAppTargets: (targets: { daily: number; weekly: number; monthly: number }) => Promise<void>;
 }
 
 const StorageContext = createContext<StorageContextType | undefined>(undefined);
 
 export function StorageProvider({ children }: { children: React.ReactNode }) {
+  const { firebaseUser } = useApp();
   const [mode, setMode] = useState<StorageMode>(() => {
     return (localStorage.getItem('jeweltrack_storage_mode') as StorageMode) || 'local';
   });
@@ -33,64 +36,93 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [transactionSummaries, setTransactionSummaries] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [appTargets, setAppTargets] = useState<{ daily: number; weekly: number; monthly: number }>({
+    daily: 13.33,
+    weekly: 100,
+    monthly: 400
+  });
   const [loading, setLoading] = useState(true);
 
-  // Load data based on mode
+  // Load data based on mode and user
   useEffect(() => {
+    if (mode === 'firestore' && !firebaseUser) {
+      setLoading(false);
+      setTransactions([]);
+      setTransactionSummaries([]);
+      setEmployees([]);
+      return;
+    }
+
     setLoading(true);
     if (mode === 'local') {
       const loadLocal = () => {
         const localTrxs = JSON.parse(localStorage.getItem('jeweltrack_local_transactions') || '[]');
         const localSums = JSON.parse(localStorage.getItem('jeweltrack_local_transaction_summaries') || '[]');
         const localEmps = JSON.parse(localStorage.getItem('jeweltrack_local_employees') || '[]');
+        const localTargets = JSON.parse(localStorage.getItem('jeweltrack_local_targets') || 'null');
         setTransactions(localTrxs);
         setTransactionSummaries(localSums);
         setEmployees(localEmps);
+        if (localTargets) setAppTargets(localTargets);
         setLoading(false);
       };
       
       loadLocal();
-      
-      // Simple event listener strictly for UI updates if needed
       window.addEventListener('storage', loadLocal);
       return () => window.removeEventListener('storage', loadLocal);
-    } else {
+    } else if (firebaseUser) {
       let unsubscribeTrx: (() => void) | undefined;
       let unsubscribeSums: (() => void) | undefined;
       let unsubscribeEmp: (() => void) | undefined;
+      let unsubscribeTargets: (() => void) | undefined;
 
       try {
-        unsubscribeTrx = onSnapshot(collection(db, 'transactions'), (snapshot) => {
+        const uid = firebaseUser.uid;
+        
+        // Query transactions owned by user
+        const qTrx = query(collection(db, 'transactions'), where('ownerId', '==', uid));
+        unsubscribeTrx = onSnapshot(qTrx, (snapshot) => {
           const trxs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setTransactions(trxs);
         }, (err) => handleFirestoreError(err, OperationType.GET, 'transactions'));
         
-        unsubscribeSums = onSnapshot(collection(db, 'transaction_summaries'), (snapshot) => {
+        // Query summaries owned by user
+        const qSums = query(collection(db, 'transaction_summaries'), where('ownerId', '==', uid));
+        unsubscribeSums = onSnapshot(qSums, (snapshot) => {
           const sums = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setTransactionSummaries(sums);
         }, (err) => handleFirestoreError(err, OperationType.GET, 'transaction_summaries'));
 
-        unsubscribeEmp = onSnapshot(collection(db, 'users'), (snapshot) => {
+        // Query employees owned by user
+        const qEmp = query(collection(db, 'users'), where('ownerId', '==', uid));
+        unsubscribeEmp = onSnapshot(qEmp, (snapshot) => {
           const emps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setEmployees(emps);
-          setLoading(false); // Wait for both ideally, but this is okay
+        }, (err) => handleFirestoreError(err, OperationType.GET, 'users'));
+
+        // Query targets for user
+        unsubscribeTargets = onSnapshot(doc(db, 'settings', `app_targets_${uid}`), (snap) => {
+          if (snap.exists()) {
+            setAppTargets(snap.data() as any);
+          }
+          setLoading(false);
         }, (err) => {
-          handleFirestoreError(err, OperationType.GET, 'users');
+          console.error(err);
           setLoading(false);
         });
 
+        return () => {
+          if (unsubscribeTrx) unsubscribeTrx();
+          if (unsubscribeSums) unsubscribeSums();
+          if (unsubscribeEmp) unsubscribeEmp();
+          if (unsubscribeTargets) unsubscribeTargets();
+        };
       } catch (err) {
         console.error(err);
         setLoading(false);
       }
-
-      return () => {
-        if (unsubscribeTrx) unsubscribeTrx();
-        if (unsubscribeSums) unsubscribeSums();
-        if (unsubscribeEmp) unsubscribeEmp();
-      };
     }
-  }, [mode]);
+  }, [mode, firebaseUser]);
 
   const saveLocalTrxs = (trxs: any[]) => {
     localStorage.setItem('jeweltrack_local_transactions', JSON.stringify(trxs));
@@ -108,59 +140,53 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setModeWithSync = async (newMode: StorageMode, syncLocalData: boolean = false) => {
+    if (!firebaseUser && newMode === 'firestore') {
+      alert('Please login first to use Cloud Sync.');
+      return;
+    }
+
     setLoading(true);
-    if (newMode === 'firestore' && syncLocalData) {
-      // Sync local data to firestore
+    if (newMode === 'firestore' && syncLocalData && firebaseUser) {
+      const uid = firebaseUser.uid;
       const localTrxs = JSON.parse(localStorage.getItem('jeweltrack_local_transactions') || '[]');
       const localSums = JSON.parse(localStorage.getItem('jeweltrack_local_transaction_summaries') || '[]');
       const localEmps = JSON.parse(localStorage.getItem('jeweltrack_local_employees') || '[]');
+      const localTargets = JSON.parse(localStorage.getItem('jeweltrack_local_targets') || 'null');
       
-      const idMap = new Map<string, string>();
+      const batch = writeBatch(db);
 
-      for (const emp of localEmps) {
-        const docRef = collection(db, 'users');
+      localEmps.forEach((emp: any) => {
         const { id, ...data } = emp;
-        const newDoc = await addDoc(docRef, data);
-        idMap.set(id, newDoc.id);
-      }
+        const ref = doc(collection(db, 'users'));
+        batch.set(ref, { ...data, ownerId: uid });
+      });
       
-      for (const trx of localTrxs) {
-        const docRef = collection(db, 'transactions');
+      localTrxs.forEach((trx: any) => {
         const { id, ...data } = trx;
-        if (data.userId && idMap.has(data.userId)) {
-          data.userId = idMap.get(data.userId);
-        }
-        await addDoc(docRef, data);
-      }
+        const ref = doc(collection(db, 'transactions'));
+        batch.set(ref, { ...data, ownerId: uid });
+      });
       
-      for (const sum of localSums) {
-        const docRef = collection(db, 'transaction_summaries');
+      localSums.forEach((sum: any) => {
         const { id, ...data } = sum;
-        if (data.createdBy && idMap.has(data.createdBy)) {
-            data.createdBy = idMap.get(data.createdBy);
-        }
-        await addDoc(docRef, data);
+        const ref = doc(collection(db, 'transaction_summaries'));
+        batch.set(ref, { ...data, ownerId: uid });
+      });
+
+      if (localTargets) {
+        const targetRef = doc(db, 'settings', `app_targets_${uid}`);
+        batch.set(targetRef, localTargets);
       }
       
-      // Clear local
+      await batch.commit();
+
       localStorage.removeItem('jeweltrack_local_transactions');
       localStorage.removeItem('jeweltrack_local_transaction_summaries');
       localStorage.removeItem('jeweltrack_local_employees');
-      localStorage.removeItem('jeweltrack_user'); // force relogin
-      
-      localStorage.setItem('jeweltrack_storage_mode', newMode);
-      window.location.reload();
-    } else if (newMode === 'firestore' && !syncLocalData) {
-      // User opted to delete local
-      localStorage.removeItem('jeweltrack_local_transactions');
-      localStorage.removeItem('jeweltrack_local_transaction_summaries');
-      localStorage.removeItem('jeweltrack_local_employees');
-      localStorage.removeItem('jeweltrack_user'); // force relogin
       localStorage.setItem('jeweltrack_storage_mode', newMode);
       window.location.reload();
     } else {
       localStorage.setItem('jeweltrack_storage_mode', newMode);
-      localStorage.removeItem('jeweltrack_user'); // force relogin
       window.location.reload();
     }
   };
@@ -169,8 +195,8 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     if (mode === 'local') {
       const trxs = [...transactions, { id: crypto.randomUUID(), ...data, timestamp: Date.now() }];
       saveLocalTrxs(trxs);
-    } else {
-      await addDoc(collection(db, 'transactions'), data);
+    } else if (firebaseUser) {
+      await addDoc(collection(db, 'transactions'), { ...data, ownerId: firebaseUser.uid, timestamp: Date.now() });
     }
   };
 
@@ -178,8 +204,8 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     if (mode === 'local') {
       const sums = [...transactionSummaries, { id: crypto.randomUUID(), ...data }];
       saveLocalTransactionSummaries(sums);
-    } else {
-      await addDoc(collection(db, 'transaction_summaries'), data);
+    } else if (firebaseUser) {
+      await addDoc(collection(db, 'transaction_summaries'), { ...data, ownerId: firebaseUser.uid });
     }
   };
 
@@ -205,8 +231,8 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     if (mode === 'local') {
       const emps = [...employees, { id: crypto.randomUUID(), ...data }];
       saveLocalEmps(emps);
-    } else {
-      await addDoc(collection(db, 'users'), data);
+    } else if (firebaseUser) {
+      await addDoc(collection(db, 'users'), { ...data, ownerId: firebaseUser.uid });
     }
   };
 
@@ -256,14 +282,15 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
           const merged = [...currentEmps, ...importData.employees.map(e => ({ ...e, id: e.id || crypto.randomUUID() }))];
           saveLocalEmps(merged);
         }
-      } else {
+      } else if (firebaseUser) {
+        const uid = firebaseUser.uid;
         const batch = writeBatch(db);
         
         if (importData.transactions) {
           importData.transactions.forEach(t => {
             const { id, ...data } = t;
             const ref = id ? doc(collection(db, 'transactions'), id) : doc(collection(db, 'transactions'));
-            batch.set(ref, data, { merge: true });
+            batch.set(ref, { ...data, ownerId: uid }, { merge: true });
           });
         }
         
@@ -271,7 +298,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
           importData.summaries.forEach(s => {
             const { id, ...data } = s;
             const ref = id ? doc(collection(db, 'transaction_summaries'), id) : doc(collection(db, 'transaction_summaries'));
-            batch.set(ref, data, { merge: true });
+            batch.set(ref, { ...data, ownerId: uid }, { merge: true });
           });
         }
         
@@ -279,7 +306,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
           importData.employees.forEach(e => {
             const { id, ...data } = e;
             const ref = id ? doc(collection(db, 'users'), id) : doc(collection(db, 'users'));
-            batch.set(ref, data, { merge: true });
+            batch.set(ref, { ...data, ownerId: uid }, { merge: true });
           });
         }
         
@@ -293,11 +320,22 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateAppTargets = async (targets: { daily: number; weekly: number; monthly: number }) => {
+    if (mode === 'local') {
+      localStorage.setItem('jeweltrack_local_targets', JSON.stringify(targets));
+      setAppTargets(targets);
+    } else if (firebaseUser) {
+      const uid = firebaseUser.uid;
+      await setDoc(doc(db, 'settings', `app_targets_${uid}`), { ...targets, ownerId: uid }, { merge: true });
+    }
+  };
+
   return (
     <StorageContext.Provider value={{
       mode, setModeWithSync, transactions, transactionSummaries, employees, loading,
       addTransaction, addPastDataSummary, updateTransaction, deleteTransaction,
-      addEmployee, updateEmployee, deleteEmployee, getTransaction, bulkImport
+      addEmployee, updateEmployee, deleteEmployee, getTransaction, bulkImport,
+      appTargets, updateAppTargets
     }}>
       {children}
     </StorageContext.Provider>

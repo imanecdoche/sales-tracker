@@ -1,9 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { auth } from '../firebase';
+import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
 
 interface Employee {
   id: string;
   name: string;
   role: string;
+  email?: string;
 }
 
 export type AdaptMode = 'auto' | 'portrait' | 'landscape';
@@ -11,16 +14,19 @@ export type AdaptMode = 'auto' | 'portrait' | 'landscape';
 interface AppContextType {
   currentUser: Employee | null;
   setCurrentUser: (user: Employee | null) => void;
+  firebaseUser: FirebaseUser | null;
   isReady: boolean;
   adaptMode: AdaptMode;
   setAdaptMode: (mode: AdaptMode) => void;
   isLandscapeLayout: boolean;
+  logout: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [adaptMode, setAdaptModeState] = useState<AdaptMode>(
     (localStorage.getItem('jeweltrack_adapt_mode') as AdaptMode) || 'auto'
@@ -28,15 +34,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isClientLandscape, setIsClientLandscape] = useState(false);
 
   useEffect(() => {
-    const initUser = () => {
-      const stored = localStorage.getItem('jeweltrack_user');
-      if (stored) {
-        setCurrentUser(JSON.parse(stored));
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        // We still keep the employee profile logic but link it to the firebase user
+        const stored = localStorage.getItem(`jeweltrack_user_${user.uid}`);
+        if (stored) {
+          setCurrentUser(JSON.parse(stored));
+        } else {
+          setCurrentUser({
+            id: user.uid,
+            name: user.displayName || user.email?.split('@')[0] || 'User',
+            role: 'owner',
+            email: user.email || ''
+          });
+        }
+      } else {
+        setCurrentUser(null);
       }
       setIsReady(true);
-    };
+    });
 
-    initUser();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -50,11 +69,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const handleSetUser = (user: Employee | null) => {
     setCurrentUser(user);
-    if (user) {
-      localStorage.setItem('jeweltrack_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('jeweltrack_user');
+    if (user && firebaseUser) {
+      localStorage.setItem(`jeweltrack_user_${firebaseUser.uid}`, JSON.stringify(user));
     }
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    setCurrentUser(null);
+    setFirebaseUser(null);
   };
 
   const handleSetAdaptMode = (mode: AdaptMode) => {
@@ -66,8 +89,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{ 
-      currentUser, setCurrentUser: handleSetUser, isReady, 
-      adaptMode, setAdaptMode: handleSetAdaptMode, isLandscapeLayout 
+      currentUser, setCurrentUser: handleSetUser, firebaseUser, isReady, 
+      adaptMode, setAdaptMode: handleSetAdaptMode, isLandscapeLayout,
+      logout
     }}>
       {children}
     </AppContext.Provider>
