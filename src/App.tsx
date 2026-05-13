@@ -3,12 +3,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AppProvider, useApp } from './contexts/AppContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { StorageProvider } from './contexts/StorageContext';
+import { DialogProvider } from './contexts/DialogContext';
 import LoginScreen from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AddTransaction from './pages/AddTransaction';
 import CategoryDetail from './pages/CategoryDetail';
 import Settings from './pages/Settings';
 import Analytics from './pages/Analytics';
+import AddPastData from './pages/AddPastData';
 import BottomNav from './components/BottomNav';
 
 function AuthWrapper({ children }: { children: React.ReactNode }) {
@@ -43,19 +45,22 @@ export default function App() {
     <AppProvider>
       <LanguageProvider>
         <StorageProvider>
-          <Router>
-            <AuthWrapper>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/add" element={<AddTransaction />} />
-                <Route path="/edit/:id" element={<AddTransaction />} />
-                <Route path="/category/:categoryId" element={<CategoryDetail />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </AuthWrapper>
-          </Router>
+          <DialogProvider>
+            <Router>
+              <AuthWrapper>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/add" element={<AddTransaction />} />
+                  <Route path="/edit/:id" element={<AddTransaction />} />
+                  <Route path="/add-past" element={<AddPastData />} />
+                  <Route path="/category/:categoryId" element={<CategoryDetail />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </AuthWrapper>
+            </Router>
+          </DialogProvider>
         </StorageProvider>
       </LanguageProvider>
     </AppProvider>

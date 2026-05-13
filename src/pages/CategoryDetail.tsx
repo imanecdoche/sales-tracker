@@ -22,7 +22,7 @@ export default function CategoryDetail() {
   const navigate = useNavigate();
   const { currentUser } = useApp();
   const { t } = useLanguage();
-  const { transactions: allTransactions, loading, deleteTransaction } = useStorage();
+  const { transactions: allTransactions, transactionSummaries: allSummaries, loading, deleteTransaction } = useStorage();
 
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
 
@@ -34,6 +34,12 @@ export default function CategoryDetail() {
       .filter(trx => trx.userId === currentUser.id && trx.type === categoryId && trx.date === dateStr)
       .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   }, [allTransactions, currentUser, categoryId, dateStr]);
+
+  const hasSummary = useMemo(() => {
+    if (!currentUser || !categoryId) return false;
+    const summary = allSummaries.find(s => s.createdBy === currentUser.id && s.date === dateStr);
+    return summary && summary.categories && summary.categories[categoryId] > 0;
+  }, [allSummaries, currentUser, categoryId, dateStr]);
 
   const confirmDelete = async () => {
     if (transactionToDelete) {
@@ -72,7 +78,14 @@ export default function CategoryDetail() {
 
         {transactions.length === 0 ? (
           <div className="bg-white rounded-3xl p-8 text-center shadow-sm border border-gray-100">
-            <p className="text-gray-400 font-serif italic">{t('noRecords')}</p>
+            {hasSummary ? (
+              <div>
+                <div className="inline-block px-3 py-1 bg-[#b68c5b]/10 text-[#b68c5b] rounded-full text-xs font-bold uppercase tracking-wider mb-3">Summary Entry</div>
+                <p className="text-gray-500 font-medium">No detailed transaction records available for this date.</p>
+              </div>
+            ) : (
+              <p className="text-gray-400 font-serif italic">{t('noRecords')}</p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

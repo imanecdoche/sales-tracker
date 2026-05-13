@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useStorage } from '../contexts/StorageContext';
+import { useDialog } from '../contexts/DialogContext';
 import { User, LogOut, ShieldCheck, ShieldAlert, Plus, X, MonitorSmartphone, Database, Cloud, Tablet, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +10,7 @@ export default function Settings() {
   const { currentUser, setCurrentUser, adaptMode, setAdaptMode } = useApp();
   const { language, setLanguage, t } = useLanguage();
   const { mode, setModeWithSync, employees, loading, addEmployee, updateEmployee } = useStorage();
+  const { confirm } = useDialog();
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -37,8 +39,12 @@ export default function Settings() {
     }
   };
 
-  const handleLogout = () => {
-    if (window.confirm(t('switchAccount'))) {
+  const handleLogout = async () => {
+    const isConfirmed = await confirm({
+      message: t('switchAccount'),
+      confirmText: 'Logout',
+    });
+    if (isConfirmed) {
       setCurrentUser(null);
       navigate('/');
     }
@@ -51,10 +57,18 @@ export default function Settings() {
       const localTrxs = JSON.parse(localStorage.getItem('jeweltrack_local_transactions') || '[]');
       const localEmps = JSON.parse(localStorage.getItem('jeweltrack_local_employees') || '[]');
       if (localTrxs.length > 0 || localEmps.length > 0) {
-        if (window.confirm(t('syncPrompt'))) {
+        const syncConfirmed = await confirm({
+          message: t('syncPrompt'),
+          confirmText: 'Sync to Cloud'
+        });
+        if (syncConfirmed) {
           await setModeWithSync('firestore', true);
         } else {
-          if (window.confirm(t('deleteLocalPrompt'))) {
+          const deleteConfirmed = await confirm({
+            message: t('deleteLocalPrompt'),
+            confirmText: 'Switch Anyway'
+          });
+          if (deleteConfirmed) {
             await setModeWithSync('firestore', false);
           }
         }
@@ -85,7 +99,7 @@ export default function Settings() {
         <p className="text-sm text-gray-500 font-medium">{t('manageEmployees')}</p>
       </header>
 
-      <div className="space-y-6">
+      <div className="space-y-6 pb-20">
         <section>
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">{t('currentAccount')}</h2>
           <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 flex items-center justify-between">
@@ -206,6 +220,45 @@ export default function Settings() {
                 {lang.name}
               </button>
             ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 ml-1">Data Management</h2>
+          <div className="bg-white rounded-[24px] p-2 shadow-sm border border-gray-100 flex flex-col gap-2">
+            <button
+              onClick={() => navigate('/add-past')}
+              className="flex items-center gap-4 py-3 px-4 rounded-2xl transition-all bg-gray-50 text-gray-600 hover:bg-gray-100 text-left"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#b68c5b]/10 flex items-center justify-center text-[#b68c5b]">
+                <Plus size={16} />
+              </div>
+              <div>
+                <span className="text-sm font-bold block mb-0.5">Add Past Data</span>
+                <span className="text-[10px] text-gray-500 font-medium">Input historical transaction totals manually</span>
+              </div>
+            </button>
+            
+            <button
+              onClick={async () => {
+                const isConfirmed = await confirm({
+                  message: "Upload current local data to Firestore? This will switch your storage mode to Cloud.",
+                  confirmText: "Upload & Sync"
+                });
+                if (isConfirmed) {
+                  await setModeWithSync('firestore', true);
+                }
+              }}
+              className="flex items-center gap-4 py-3 px-4 rounded-2xl transition-all bg-gray-50 text-gray-600 hover:bg-gray-100 text-left"
+            >
+              <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <Cloud size={16} />
+              </div>
+              <div>
+                <span className="text-sm font-bold block mb-0.5">Update &amp; Sync Data</span>
+                <span className="text-[10px] text-gray-500 font-medium">Upload local data to Cloud and switch mode</span>
+              </div>
+            </button>
           </div>
         </section>
 

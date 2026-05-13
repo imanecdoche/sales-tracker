@@ -9,9 +9,11 @@ interface StorageContextType {
   mode: StorageMode;
   setModeWithSync: (mode: StorageMode, syncLocalData?: boolean) => Promise<void>;
   transactions: any[];
+  transactionSummaries: any[];
   employees: any[];
   loading: boolean;
   addTransaction: (data: any) => Promise<void>;
+  addPastDataSummary: (data: any) => Promise<void>;
   updateTransaction: (id: string, data: any) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addEmployee: (data: any) => Promise<void>;
@@ -27,6 +29,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   });
   
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactionSummaries, setTransactionSummaries] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,8 +39,10 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     if (mode === 'local') {
       const loadLocal = () => {
         const localTrxs = JSON.parse(localStorage.getItem('jeweltrack_local_transactions') || '[]');
+        const localSums = JSON.parse(localStorage.getItem('jeweltrack_local_transaction_summaries') || '[]');
         const localEmps = JSON.parse(localStorage.getItem('jeweltrack_local_employees') || '[]');
         setTransactions(localTrxs);
+        setTransactionSummaries(localSums);
         setEmployees(localEmps);
         setLoading(false);
       };
@@ -49,6 +54,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       return () => window.removeEventListener('storage', loadLocal);
     } else {
       let unsubscribeTrx: (() => void) | undefined;
+      let unsubscribeSums: (() => void) | undefined;
       let unsubscribeEmp: (() => void) | undefined;
 
       try {
@@ -56,6 +62,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
           const trxs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setTransactions(trxs);
         }, (err) => handleFirestoreError(err, OperationType.GET, 'transactions'));
+        
+        unsubscribeSums = onSnapshot(collection(db, 'transaction_summaries'), (snapshot) => {
+          const sums = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setTransactionSummaries(sums);
+        }, (err) => handleFirestoreError(err, OperationType.GET, 'transaction_summaries'));
 
         unsubscribeEmp = onSnapshot(collection(db, 'users'), (snapshot) => {
           const emps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -73,6 +84,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
       return () => {
         if (unsubscribeTrx) unsubscribeTrx();
+        if (unsubscribeSums) unsubscribeSums();
         if (unsubscribeEmp) unsubscribeEmp();
       };
     }
@@ -81,6 +93,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   const saveLocalTrxs = (trxs: any[]) => {
     localStorage.setItem('jeweltrack_local_transactions', JSON.stringify(trxs));
     setTransactions(trxs);
+  };
+
+  const saveLocalTransactionSummaries = (sums: any[]) => {
+    localStorage.setItem('jeweltrack_local_transaction_summaries', JSON.stringify(sums));
+    setTransactionSummaries(sums);
   };
 
   const saveLocalEmps = (emps: any[]) => {
@@ -93,6 +110,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     if (newMode === 'firestore' && syncLocalData) {
       // Sync local data to firestore
       const localTrxs = JSON.parse(localStorage.getItem('jeweltrack_local_transactions') || '[]');
+      const localSums = JSON.parse(localStorage.getItem('jeweltrack_local_transaction_summaries') || '[]');
       const localEmps = JSON.parse(localStorage.getItem('jeweltrack_local_employees') || '[]');
       
       const idMap = new Map<string, string>();
@@ -113,8 +131,18 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
         await addDoc(docRef, data);
       }
       
+      for (const sum of localSums) {
+        const docRef = collection(db, 'transaction_summaries');
+        const { id, ...data } = sum;
+        if (data.createdBy && idMap.has(data.createdBy)) {
+            data.createdBy = idMap.get(data.createdBy);
+        }
+        await addDoc(docRef, data);
+      }
+      
       // Clear local
       localStorage.removeItem('jeweltrack_local_transactions');
+      localStorage.removeItem('jeweltrack_local_transaction_summaries');
       localStorage.removeItem('jeweltrack_local_employees');
       localStorage.removeItem('jeweltrack_user'); // force relogin
       
@@ -123,6 +151,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     } else if (newMode === 'firestore' && !syncLocalData) {
       // User opted to delete local
       localStorage.removeItem('jeweltrack_local_transactions');
+      localStorage.removeItem('jeweltrack_local_transaction_summaries');
       localStorage.removeItem('jeweltrack_local_employees');
       localStorage.removeItem('jeweltrack_user'); // force relogin
       localStorage.setItem('jeweltrack_storage_mode', newMode);
@@ -140,6 +169,15 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       saveLocalTrxs(trxs);
     } else {
       await addDoc(collection(db, 'transactions'), data);
+    }
+  };
+
+  const addPastDataSummary = async (data: any) => {
+    if (mode === 'local') {
+      const sums = [...transactionSummaries, { id: crypto.randomUUID(), ...data }];
+      saveLocalTransactionSummaries(sums);
+    } else {
+      await addDoc(collection(db, 'transaction_summaries'), data);
     }
   };
 
@@ -190,8 +228,8 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <StorageContext.Provider value={{
-      mode, setModeWithSync, transactions, employees, loading,
-      addTransaction, updateTransaction, deleteTransaction,
+      mode, setModeWithSync, transactions, transactionSummaries, employees, loading,
+      addTransaction, addPastDataSummary, updateTransaction, deleteTransaction,
       addEmployee, updateEmployee, getTransaction
     }}>
       {children}

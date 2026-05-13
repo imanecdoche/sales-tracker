@@ -34,7 +34,13 @@
         "customerName": { "type": "string" },
         "notes": { "type": "string" },
         "date": { "type": "string" },
-        "timestamp": { "type": "number" }
+        "timestamp": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "sellQty": { "type": "number" },
+        "sellGram": { "type": "number" },
+        "sellPrice": { "type": "number" },
+        "itemsData": { "type": "string" },
+        "sellItemsData": { "type": "string" }
       },
       "required": ["userId", "type", "qty", "gram", "price", "customerName", "date", "timestamp"]
     },
@@ -61,6 +67,20 @@
         }
       },
       "required": ["userId", "date", "totalTransactions", "totalGrams", "totalPrice", "statsByCategory"]
+    },
+    "TransactionSummary": {
+      "title": "TransactionSummary",
+      "description": "Manually added historical summary",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "source": { "type": "string" },
+        "categories": { "type": "object" },
+        "totalTransactions": { "type": "number" },
+        "createdBy": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["date", "source", "categories", "totalTransactions", "createdBy", "timestamp"]
     }
   },
   "firestore": {
@@ -79,6 +99,10 @@
     "dailySummaries/{summaryId}": {
       "schema": { "$ref": "#/entities/DailySummary" },
       "description": "Daily Rollups"
+    },
+    "transaction_summaries/{summaryId}": {
+      "schema": { "$ref": "#/entities/TransactionSummary" },
+      "description": "Manually added historical transaction summaries"
     }
   }
 }

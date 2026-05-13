@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { format } from 'date-fns';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Check, X, Save } from 'lucide-react';
+import { Check, X, Save, Settings2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useStorage } from '../contexts/StorageContext';
+import { Modal } from '../components/Modal';
 
 export default function AddTransaction() {
   const { currentUser, isLandscapeLayout } = useApp();
@@ -15,6 +16,11 @@ export default function AddTransaction() {
   const [fetching, setFetching] = useState(false);
   const { getTransaction, addTransaction, updateTransaction } = useStorage();
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  const [items, setItems] = useState<{weight: string; price: string}[]>([{weight: '', price: ''}]);
+  const [sellItems, setSellItems] = useState<{weight: string; price: string}[]>([{weight: '', price: ''}]);
+  const [isItemsModalOpen, setIsItemsModalOpen] = useState(false);
+  const [isSellItemsModalOpen, setIsSellItemsModalOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     type: 'sell',
@@ -65,6 +71,12 @@ export default function AddTransaction() {
               sellGram: data.sellGram?.toString() || '',
               sellPrice: data.sellPrice ? parseInt(data.sellPrice.toString().replace(/\D/g, '')).toLocaleString('en-US') : '',
             });
+            if (data.itemsData) {
+              try { setItems(JSON.parse(data.itemsData)); } catch(e){}
+            }
+            if (data.sellItemsData) {
+              try { setSellItems(JSON.parse(data.sellItemsData)); } catch(e){}
+            }
           }
         } catch (error) {
           console.error(error);
@@ -88,6 +100,28 @@ export default function AddTransaction() {
     else setFormData({ ...formData, price: formattedValue });
   };
 
+  useEffect(() => {
+    const q = parseInt(formData.qty, 10);
+    if (!isNaN(q) && q > 0 && q !== items.length) {
+      if (q > items.length) {
+        setItems(prev => [...prev, ...Array(q - prev.length).fill({weight: '', price: ''})]);
+      } else {
+        setItems(prev => prev.slice(0, q));
+      }
+    }
+  }, [formData.qty]);
+
+  useEffect(() => {
+    const sq = parseInt(formData.sellQty, 10);
+    if (!isNaN(sq) && sq > 0 && sq !== sellItems.length) {
+      if (sq > sellItems.length) {
+        setSellItems(prev => [...prev, ...Array(sq - prev.length).fill({weight: '', price: ''})]);
+      } else {
+        setSellItems(prev => prev.slice(0, sq));
+      }
+    }
+  }, [formData.sellQty]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
@@ -105,7 +139,11 @@ export default function AddTransaction() {
           sellQty: parseInt(formData.sellQty) || 1,
           sellGram: parseFloat(formData.sellGram) || 0,
           sellPrice: parseFloat(formData.sellPrice.replace(/\D/g, '')) || 0,
-        } : {}),
+          itemsData: JSON.stringify(items.slice(0, parseInt(formData.qty) || 1)),
+          sellItemsData: JSON.stringify(sellItems.slice(0, parseInt(formData.sellQty) || 1)),
+        } : {
+          itemsData: JSON.stringify(items.slice(0, parseInt(formData.qty) || 1)),
+        }),
       };
 
       if (id) {
@@ -143,6 +181,156 @@ export default function AddTransaction() {
     { id: 'services', label: 'cat_services' },
     { id: 'cnn', label: 'cat_cnn' },
   ];
+
+  const renderItemsInput = (isSell: boolean) => {
+    const q = parseInt(isSell ? formData.sellQty : formData.qty, 10) || 1;
+    const currentItems = isSell ? sellItems : items;
+    const setItemsState = isSell ? setSellItems : setItems;
+
+    const setTotal = (newItems: any[]) => {
+      let tGram = 0;
+      let tPrice = 0;
+      newItems.slice(0, q).forEach((i: any) => {
+        tGram += parseFloat(i.weight) || 0;
+        tPrice += parseFloat(i.price.replace(/\D/g, '')) || 0;
+      });
+      if (isSell) {
+        setFormData(prev => ({...prev, sellGram: tGram.toString(), sellPrice: tPrice.toLocaleString('en-US')}));
+      } else {
+        setFormData(prev => ({...prev, gram: tGram.toString(), price: tPrice.toLocaleString('en-US')}));
+      }
+    };
+
+    const handleChange = (idx: number, field: 'weight'|'price', val: string) => {
+      const newItems = [...currentItems];
+      let parsedVal = val;
+      if (field === 'price') {
+        const numeric = val.replace(/\D/g, '');
+        parsedVal = numeric ? parseInt(numeric, 10).toLocaleString('en-US') : '';
+      }
+      newItems[idx] = { ...newItems[idx], [field]: parsedVal };
+      setItemsState(newItems);
+      setTotal(newItems);
+    };
+
+    if (q >= 5) {
+      return (
+        <div>
+          <button type="button" onClick={() => isSell ? setIsSellItemsModalOpen(true) : setIsItemsModalOpen(true)} className="w-full py-4 text-center border-2 border-dashed border-[#b68c5b]/40 text-[#b68c5b] font-medium rounded-2xl mb-4 hover:bg-[#b68c5b]/5 transition-colors">
+            <Settings2 className="inline-block w-5 h-5 mr-2" />
+            Fill Item Details ({q} items)
+          </button>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Total Weight</label>
+              <input type="text" readOnly value={isSell ? formData.sellGram : formData.gram} placeholder="0.00" className="w-full bg-gray-100 rounded-2xl px-5 py-4 text-lg font-medium text-gray-500 outline-none" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Total Price</label>
+              <input type="text" readOnly value={isSell ? formData.sellPrice : formData.price} placeholder="0" className="w-full bg-gray-100 rounded-2xl px-5 py-4 text-lg font-medium text-gray-500 outline-none" required />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {currentItems.slice(0, q).map((item, idx) => (
+          <div key={idx} className="grid grid-cols-2 gap-4 items-center">
+             {q > 1 && <div className="col-span-2 text-xs font-bold text-[#b68c5b] uppercase tracking-wider">Item #{idx + 1}</div>}
+             <div>
+               <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Weight *</label>
+               <input type="number" step="0.01" required value={item.weight} onChange={e => handleChange(idx, 'weight', e.target.value)} placeholder="0.00" className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg outline-none focus:ring-2 focus:ring-[#b68c5b]/20" />
+             </div>
+             <div>
+               <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Price *</label>
+               <input type="text" inputMode="numeric" required value={item.price} onChange={e => handleChange(idx, 'price', e.target.value)} placeholder="0" className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg outline-none focus:ring-2 focus:ring-[#b68c5b]/20 text-[#b68c5b] font-medium" />
+             </div>
+          </div>
+        ))}
+        {q > 1 && (
+          <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
+             <div>
+               <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Total Weight</label>
+               <input type="text" readOnly value={isSell ? formData.sellGram : formData.gram} placeholder="0.00" className="w-full bg-gray-100/50 rounded-2xl px-5 py-4 text-lg font-medium text-gray-600 outline-none" required />
+             </div>
+             <div>
+               <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Total Price</label>
+               <input type="text" readOnly value={isSell ? formData.sellPrice : formData.price} placeholder="0" className="w-full bg-gray-100/50 rounded-2xl px-5 py-4 text-lg font-medium text-[#b68c5b]/70 outline-none" required />
+             </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderModal = (isSell: boolean) => {
+    const isOpen = isSell ? isSellItemsModalOpen : isItemsModalOpen;
+    const q = parseInt(isSell ? formData.sellQty : formData.qty, 10) || 1;
+    const currentItems = isSell ? sellItems : items;
+    const setItemsState = isSell ? setSellItems : setItems;
+
+    const setTotal = (newItems: any[]) => {
+      let tGram = 0;
+      let tPrice = 0;
+      newItems.slice(0, q).forEach((i: any) => {
+        tGram += parseFloat(i.weight) || 0;
+        tPrice += parseFloat(i.price.replace(/\D/g, '')) || 0;
+      });
+      if (isSell) {
+        setFormData(prev => ({...prev, sellGram: tGram.toString(), sellPrice: tPrice.toLocaleString('en-US')}));
+      } else {
+        setFormData(prev => ({...prev, gram: tGram.toString(), price: tPrice.toLocaleString('en-US')}));
+      }
+    };
+
+    const handleChange = (idx: number, field: 'weight'|'price', val: string) => {
+      const newItems = [...currentItems];
+      let parsedVal = val;
+      if (field === 'price') {
+        const numeric = val.replace(/\D/g, '');
+        parsedVal = numeric ? parseInt(numeric, 10).toLocaleString('en-US') : '';
+      }
+      newItems[idx] = { ...newItems[idx], [field]: parsedVal };
+      setItemsState(newItems);
+      setTotal(newItems);
+    };
+
+    return (
+      <Modal isOpen={isOpen} onClose={() => isSell ? setIsSellItemsModalOpen(false) : setIsItemsModalOpen(false)} title={`Fill ${isSell ? 'Sell' : 'Buy'} Items`}>
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1 hide-scrollbar">
+          {currentItems.slice(0, q).map((item, idx) => (
+             <div key={idx} className="grid grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Weight #{idx+1} *</label>
+                   <input type="number" step="0.01" value={item.weight} onChange={e => handleChange(idx, 'weight', e.target.value)} placeholder="0.00" className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-[#b68c5b]" required />
+                 </div>
+                 <div>
+                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Price #{idx+1} *</label>
+                   <input type="text" inputMode="numeric" value={item.price} onChange={e => handleChange(idx, 'price', e.target.value)} placeholder="0" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-[#b68c5b] font-medium outline-none focus:border-[#b68c5b]" required />
+                 </div>
+             </div>
+          ))}
+        </div>
+        <div className="mt-6 pt-4 border-t border-gray-100">
+          <div className="flex justify-between items-center mb-4 px-2">
+            <div>
+               <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Weight</div>
+               <div className="font-medium text-lg">{isSell ? formData.sellGram : formData.gram || '0'}<span className="text-sm text-gray-400 ml-1">g</span></div>
+            </div>
+            <div className="text-right">
+               <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Price</div>
+               <div className="font-serif text-xl text-[#b68c5b]">{isSell ? formData.sellPrice : formData.price || '0'}</div>
+            </div>
+          </div>
+          <button type="button" onClick={() => isSell ? setIsSellItemsModalOpen(false) : setIsItemsModalOpen(false)} className="w-full bg-[#2c2a29] text-white py-4 rounded-xl font-medium shadow-sm hover:bg-black transition-colors">
+            Done
+          </button>
+        </div>
+      </Modal>
+    );
+  };
 
   return (
     <div className="min-h-full relative">
@@ -220,7 +408,7 @@ export default function AddTransaction() {
                       className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('quantity')} *</label>
                       <input
@@ -233,37 +421,13 @@ export default function AddTransaction() {
                         className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('weight')} *</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        value={formData.gram}
-                        onChange={e => setFormData({ ...formData, gram: e.target.value })}
-                        placeholder="0.00"
-                        required
-                        className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
-                      />
-                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('totalPrice')} *</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.price}
-                      onChange={(e) => handlePriceChange(e, false)}
-                      placeholder="0"
-                      required
-                      className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-xl font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20 text-[#b68c5b]"
-                    />
-                  </div>
+                  {renderItemsInput(false)}
                 </div>
 
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-6">
                   <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-3">Customer Sells (Old Item)</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('quantity')} *</label>
                       <input
@@ -276,32 +440,8 @@ export default function AddTransaction() {
                         className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('weight')} *</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        value={formData.sellGram}
-                        onChange={e => setFormData({ ...formData, sellGram: e.target.value })}
-                        placeholder="0.00"
-                        required
-                        className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
-                      />
-                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Trade-in Value *</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.sellPrice}
-                      onChange={(e) => handlePriceChange(e, true)}
-                      placeholder="0"
-                      required
-                      className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-xl font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20 text-[#b68c5b]"
-                    />
-                  </div>
+                  {renderItemsInput(true)}
                 </div>
 
                 <div className="bg-[#b68c5b]/10 rounded-3xl p-6 border border-[#b68c5b]/20">
@@ -325,7 +465,7 @@ export default function AddTransaction() {
               </div>
             ) : (
               <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('quantity')} *</label>
                     <input
@@ -338,32 +478,8 @@ export default function AddTransaction() {
                       className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('weight')} *</label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      value={formData.gram}
-                      onChange={e => setFormData({ ...formData, gram: e.target.value })}
-                      placeholder="0.00"
-                      required
-                      className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-lg font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20"
-                    />
-                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('totalPrice')}</label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formData.price}
-                    onChange={(e) => handlePriceChange(e, false)}
-                    placeholder="0"
-                    className="w-full bg-gray-50 rounded-2xl px-5 py-4 text-xl font-medium outline-none focus:ring-2 focus:ring-[#b68c5b]/20 text-[#b68c5b]"
-                  />
-                </div>
+                {renderItemsInput(false)}
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">{t('customerName')}</label>
@@ -415,6 +531,8 @@ export default function AddTransaction() {
               </button>
             </div>
             )}
+            {renderModal(false)}
+            {renderModal(true)}
           </form>
         )}
       </div>

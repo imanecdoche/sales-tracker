@@ -6,7 +6,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9\\-_]+$');
     }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
@@ -35,7 +35,13 @@ service cloud.firestore {
         && data.customerName is string && data.customerName.size() <= 200
         && data.date is string && data.date.size() <= 20
         && data.timestamp is number
-        && (!('updatedAt' in data) || data.updatedAt is number);
+        && (!('updatedAt' in data) || data.updatedAt is number)
+        && (!('sellQty' in data) || data.sellQty is number)
+        && (!('sellGram' in data) || data.sellGram is number)
+        && (!('sellPrice' in data) || data.sellPrice is number)
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000))
+        && (!('itemsData' in data) || (data.itemsData is string && data.itemsData.size() <= 5000))
+        && (!('sellItemsData' in data) || (data.sellItemsData is string && data.sellItemsData.size() <= 5000));
     }
 
     function isValidDailySummary(data) {
@@ -48,12 +54,22 @@ service cloud.firestore {
         && data.statsByCategory is map;
     }
 
+    function isValidTransactionSummary(data) {
+      return data.keys().hasAll(['date', 'source', 'categories', 'totalTransactions', 'createdBy', 'timestamp'])
+        && data.date is string && data.date.size() <= 20
+        && data.source is string && data.source.size() <= 50
+        && data.categories is map
+        && data.totalTransactions is number
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.timestamp is number;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && isValidId(userId)
         && isValidUser(incoming())
-        && incoming().keys().size() == 3;
+        && incoming().keys().size() >= 3 && incoming().keys().size() <= 5;
       allow update: if isSignedIn()
         && isValidId(userId)
         && isValidUser(incoming())
@@ -66,7 +82,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && isValidId(categoryId)
         && isValidCategory(incoming())
-        && incoming().keys().size() == 2;
+        && incoming().keys().size() >= 2 && incoming().keys().size() <= 4;
       allow update: if isSignedIn()
         && isValidId(categoryId)
         && isValidCategory(incoming())
@@ -79,12 +95,11 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && isValidId(transactionId)
         && isValidTransaction(incoming())
-        && (incoming().keys().size() == 8 || (incoming().keys().hasAll(['notes']) && incoming().keys().size() == 9))
-        && (!('notes' in incoming()) || (incoming().notes is string && incoming().notes.size() <= 1000));
+        && incoming().keys().size() >= 8 && incoming().keys().size() <= 17;
       allow update: if isSignedIn()
         && isValidId(transactionId)
         && isValidTransaction(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['type', 'qty', 'gram', 'price', 'customerName', 'notes', 'date', 'timestamp', 'updatedAt']);
+        && incoming().diff(existing()).affectedKeys().hasOnly(['type', 'qty', 'gram', 'price', 'customerName', 'notes', 'date', 'timestamp', 'updatedAt', 'sellQty', 'sellGram', 'sellPrice', 'itemsData', 'sellItemsData']);
       allow delete: if isSignedIn() && isValidId(transactionId);
     }
 
@@ -93,11 +108,24 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && isValidId(summaryId)
         && isValidDailySummary(incoming())
-        && incoming().keys().size() == 6;
+        && incoming().keys().size() >= 6 && incoming().keys().size() <= 8;
       allow update: if isSignedIn()
         && isValidId(summaryId)
         && isValidDailySummary(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly(['totalTransactions', 'totalGrams', 'totalPrice', 'statsByCategory']);
+      allow delete: if isSignedIn() && isValidId(summaryId);
+    }
+    
+    match /transaction_summaries/{summaryId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && isValidId(summaryId)
+        && isValidTransactionSummary(incoming())
+        && incoming().keys().size() >= 6 && incoming().keys().size() <= 8;
+      allow update: if isSignedIn()
+        && isValidId(summaryId)
+        && isValidTransactionSummary(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['categories', 'totalTransactions', 'timestamp']);
       allow delete: if isSignedIn() && isValidId(summaryId);
     }
   }
