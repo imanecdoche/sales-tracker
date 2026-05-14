@@ -22,6 +22,27 @@ export default function Dashboard() {
   const { t } = useLanguage();
   const { transactions: allTransactions, transactionSummaries: allSummaries, appTargets, loading } = useStorage();
   const [dailyMode, setDailyMode] = useState<'static' | 'adaptive'>('static');
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getDayEndCountdown = () => {
+    const hours = currentTime.getHours();
+    const minutes = currentTime.getMinutes();
+    const seconds = currentTime.getSeconds();
+
+    if (hours === 19 && minutes >= 30) {
+      const remainingMinutes = 59 - minutes;
+      const remainingSeconds = 59 - seconds;
+      return `${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+    return null;
+  };
+
+  const countdown = getDayEndCountdown();
 
   const currentStats = useMemo(() => {
     let day = 0;
@@ -182,6 +203,17 @@ export default function Dashboard() {
         </div>
         <HeaderClock />
       </header>
+
+      {countdown && (
+        <motion.div
+           animate={{ opacity: [1, 0.4, 1] }}
+           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+           className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-2xl mb-6 shadow-sm flex items-center justify-center gap-2"
+        >
+          <Zap size={16} className="text-rose-500 fill-rose-500" />
+          <span className="font-medium text-sm tracking-wide">Day will end in {countdown}</span>
+        </motion.div>
+      )}
 
       {/* Targets Section */}
       <div className="mb-8 space-y-4">
